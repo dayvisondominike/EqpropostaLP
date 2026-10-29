@@ -1,0 +1,22 @@
+# Segredos
+.env
+.env.*
+!.env.example
+
+# Ambiente virtual / cache Python
+.venv/
+__pycache__/
+*.pyc
+
+# Saídas geradas pelo pipeline (reprocessáveis a partir dos PDFs em Cotacao/)
+processado/
+Equalizacao_LP_ACL_*.xlsx
+
+# Logs do Streamlit
+*.log
+Temp/
+
+# Dados de clientes e ferramentas locais
+Clientes/
+Cotacao/
+.claude/
