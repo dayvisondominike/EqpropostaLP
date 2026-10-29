@@ -1,0 +1,14 @@
+{
+  "toolPermission": "request-review",
+  "permissions": {
+    "allow": [
+      "command(regex:\\.venv[\\\\/]Scripts[\\\\/]python(\\.exe)?( .*)?)",
+      "command(regex:\\.venv[\\\\/]Scripts[\\\\/]streamlit(\\.exe)?( .*)?)"
+    ],
+    "deny": [
+      "command(regex:pip install)",
+      "command(git)",
+      "write_file(.env)"
+    ]
+  }
+}
