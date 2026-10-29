@@ -18,7 +18,11 @@ BASE_DIR = Path(__file__).parent
 COTACAO_DIR = BASE_DIR / "Cotacao"
 CARACTERISTICAS_DIR = COTACAO_DIR / "Caracteristicas_Produto"
 SAIDA_DIR = BASE_DIR / "processado"
-SAIDA_DIR.mkdir(exist_ok=True)
+try:
+    SAIDA_DIR.mkdir(exist_ok=True)
+except OSError:
+    # Sistema de arquivos somente leitura (Vercel): engine.py redireciona SAIDA_DIR para /tmp.
+    pass
 
 MESES = {
     "janeiro": 1, "fevereiro": 2, "março": 3, "marco": 3, "abril": 4, "maio": 5,

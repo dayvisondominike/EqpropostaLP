@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "functions": {
+    "api/extrair.py": { "maxDuration": 300, "memory": 1024 },
+    "api/cliente.py": { "maxDuration": 120, "memory": 1024 },
+    "api/consolidar.py": { "maxDuration": 60, "memory": 1024 }
+  }
+}

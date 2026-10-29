@@ -20,3 +20,11 @@ Temp/
 Clientes/
 Cotacao/
 .claude/
+
+# Next.js / Vercel
+node_modules/
+.next/
+.vercel/
+next-env.d.ts
+*.tsbuildinfo
+.env*.local
