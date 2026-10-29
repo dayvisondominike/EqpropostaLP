@@ -5,14 +5,12 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_engine"))
 
 import engine  # noqa: E402
-from http_util import criar_handler  # noqa: E402
+from http_util import JsonHandler  # noqa: E402
 
 
-def _executar(corpo: dict) -> dict:
-    urls = corpo["urls"]
-    if not isinstance(urls, list) or not urls:
-        raise ValueError("Informe ao menos um PDF.")
-    return engine.extrair_fornecedor(str(corpo["fornecedor"]), urls)
-
-
-handler = criar_handler(_executar)
+class handler(JsonHandler):
+    def executar(self, corpo: dict) -> dict:
+        urls = corpo["urls"]
+        if not isinstance(urls, list) or not urls:
+            raise ValueError("Informe ao menos um PDF.")
+        return engine.extrair_fornecedor(str(corpo["fornecedor"]), urls)

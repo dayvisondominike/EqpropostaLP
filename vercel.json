@@ -1,9 +1,16 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "nextjs",
-  "functions": {
-    "api/extrair.py": { "maxDuration": 300 },
-    "api/cliente.py": { "maxDuration": 120 },
-    "api/consolidar.py": { "maxDuration": 60 }
-  }
+  "builds": [
+    { "src": "package.json", "use": "@vercel/next" },
+    {
+      "src": "api/*.py",
+      "use": "@vercel/python",
+      "config": { "maxDuration": 300, "excludeFiles": "{legacy/**,app/**,lib/**,node_modules/**,.next/**,modelos/**,imagens/**}" }
+    }
+  ],
+  "rewrites": [
+    { "source": "/api/cliente", "destination": "/api/cliente.py" },
+    { "source": "/api/extrair", "destination": "/api/extrair.py" },
+    { "source": "/api/consolidar", "destination": "/api/consolidar.py" }
+  ]
 }
