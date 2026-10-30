@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { gerarRelatorioPdf } from "@/lib/relatorio";
-import { consolidar, enviarPdf, extrairCliente, extrairFornecedor } from "@/lib/api";
+import { lerSpreadSalvo } from "@/lib/ccee";
+import { gerarRelatorioPdf, type DadosMercado } from "@/lib/relatorio";
+import { buscarPld, consolidar, enviarPdf, extrairCliente, extrairFornecedor } from "@/lib/api";
 import {
   SUBMERCADOS,
   type Cliente,
@@ -133,6 +134,23 @@ export default function Home() {
       setErro((e as Error).message);
     } finally {
       setOcupado(false);
+    }
+  }
+
+  const [gerandoPdf, setGerandoPdf] = useState(false);
+
+  /** Busca o PLD do banco e o spread da tela PLD × I5; sem eles o relatório sai sem a página de mercado. */
+  async function gerarPdf(r: Resultado) {
+    setGerandoPdf(true);
+    try {
+      let mercado: DadosMercado | undefined;
+      try {
+        const pld = await buscarPld();
+        mercado = { pld: pld.dados, spread: lerSpreadSalvo(), fonte: pld.fonte, atualizadoEm: pld.atualizadoEm };
+      } catch { /* PLD indisponível: relatório sem a página PLD × Energia I5 */ }
+      await gerarRelatorioPdf(r, mercado);
+    } finally {
+      setGerandoPdf(false);
     }
   }
 
@@ -351,7 +369,7 @@ export default function Home() {
           <div className="secao">Exportar</div>
           <div className="linha">
             <button className="destaque" onClick={() => baixarXlsx(resultado.xlsx)}>⬇ Baixar planilha (.xlsx)</button>
-            <button className="destaque" onClick={() => gerarRelatorioPdf(resultado)}>📄 Gerar relatório (PDF)</button>
+            <button className="destaque" onClick={() => gerarPdf(resultado)} disabled={gerandoPdf}>{gerandoPdf ? "Gerando…" : "📄 Gerar relatório (PDF)"}</button>
           </div>
           <p className="nota">O relatório em Word (.docx) será adicionado na Fase 2.</p>
         </>

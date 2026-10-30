@@ -1,5 +1,6 @@
 import type { jsPDF } from "jspdf";
 import { LOGO_30_ANOS, LOGO_30_ANOS_PROPORCAO } from "./logo30";
+import type { DadosPld } from "./ccee";
 import type { LinhaRanking, Resultado } from "./types";
 
 type RGB = [number, number, number];
@@ -377,8 +378,267 @@ function cartaoContato(doc: jsPDF, larg: number, y: number, p: Contato): number 
   return y + h;
 }
 
+/** Dados de mercado para a página PLD × Energia I5: PLD mensal por submercado e spread (R$/MWh). */
+export type DadosMercado = {
+  pld: DadosPld;
+  spread: number;
+  fonte: string;
+  atualizadoEm: string | null;
+};
+
+const AZUL: RGB = [42, 152, 210];
+const MESES_ROTULO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const rotuloMes = (k: string) => `${MESES_ROTULO[Number(k.slice(5, 7)) - 1]}/${k.slice(2, 4)}`;
+const inteiro = (v: number) => Math.round(v).toLocaleString("pt-BR");
+
+function chaveSubmercado(nome: string): string {
+  const s = nome.normalize("NFD").replace(/\p{Diacritic}/gu, "").toUpperCase();
+  if (s.includes("NORDESTE")) return "NORDESTE";
+  if (s.includes("SUDESTE")) return "SUDESTE";
+  if (s.includes("NORTE")) return "NORTE";
+  if (s.includes("SUL")) return "SUL";
+  return "SUDESTE";
+}
+
+/** Curva suave (Fritsch-Carlson) em segmentos de Bézier relativos, no formato de `doc.lines`. */
+function curvaSuave(doc: jsPDF, pts: { x: number; y: number }[]) {
+  const n = pts.length;
+  if (n < 2) return;
+  const dx = pts.slice(1).map((p, i) => p.x - pts[i].x);
+  const m = pts.slice(1).map((p, i) => (p.y - pts[i].y) / dx[i]);
+  const t = [m[0]];
+  for (let i = 1; i < n - 1; i++) t.push(m[i - 1] * m[i] <= 0 ? 0 : (m[i - 1] + m[i]) / 2);
+  t.push(m[n - 2]);
+  for (let i = 0; i < n - 1; i++) {
+    if (m[i] === 0) { t[i] = 0; t[i + 1] = 0; continue; }
+    const a = t[i] / m[i], b = t[i + 1] / m[i], s = a * a + b * b;
+    if (s > 9) { const k = 3 / Math.sqrt(s); t[i] = k * a * m[i]; t[i + 1] = k * b * m[i]; }
+  }
+  const segs: number[][] = [];
+  for (let i = 0; i < n - 1; i++) {
+    const h = dx[i] / 3;
+    segs.push([h, t[i] * h, dx[i] - h, pts[i + 1].y - pts[i].y - t[i + 1] * h, dx[i], pts[i + 1].y - pts[i].y]);
+  }
+  doc.lines(segs, pts[0].x, pts[0].y, [1, 1], "S");
+}
+
+function cartaoPld(doc: jsPDF, x: number, y: number, w: number, rotulo: string, valor: string, escuro: boolean) {
+  const h = 22;
+  if (escuro) {
+    doc.setFillColor(...VERDE);
+    doc.roundedRect(x, y, w, h, 2.5, 2.5, "F");
+    doc.setFillColor(...AMARELO);
+    doc.rect(x + 1.5, y, w - 3, 1.2, "F");
+  } else {
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(...BORDA);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(x, y, w, h, 2.5, 2.5, "FD");
+    doc.setFillColor(...VERDE);
+    doc.rect(x + 1.5, y, w - 3, 1.2, "F");
+  }
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(6.3);
+  doc.setTextColor(...(escuro ? ([207, 230, 226] as RGB) : CINZA));
+  doc.text(rotulo, x + 4, y + 8, { charSpace: 0.25, maxWidth: w - 6 });
+  doc.setFontSize(13);
+  doc.setTextColor(...(escuro ? AMARELO : VERDE));
+  doc.text(valor, x + 4, y + 17);
+}
+
+/** Página "PLD × Energia I5": cards, gráfico e comparação com a proposta vencedora. */
+function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lider: LinhaRanking | undefined) {
+  const { doc, larg, alt } = c;
+  const sub = chaveSubmercado(resultado.params.submercado);
+  const nomeSub = sub.charAt(0) + sub.slice(1).toLowerCase();
+  const serie = mercado.pld[sub] ?? {};
+  const meses = Object.keys(serie).sort();
+  const ate = meses[meses.length - 1];
+  const de = meses.find((m) => m >= "2025-01") ?? meses[0];
+  const periodo = meses.filter((m) => m >= de && m <= ate);
+  if (periodo.length < 2) return;
+
+  doc.addPage();
+  cabecalhoPagina(c, "Cenário de mercado", "PLD × Energia I5");
+
+  const pontos = periodo.map((m) => ({ mes: m, pld: serie[m], i5: serie[m] + mercado.spread }));
+  const media = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const mediaI5 = media(pontos.map((p) => p.i5));
+  const mediaPld = media(pontos.map((p) => p.pld));
+  const vals = pontos.map((p) => p.pld);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  doc.setTextColor(...CINZA);
+  doc.text(
+    `Submercado ${nomeSub} · ${rotuloMes(periodo[0])} a ${rotuloMes(periodo[periodo.length - 1])} · PLD médio mensal da CCEE e Energia I5 (PLD + spread).`,
+    MARGEM,
+    44,
+    { maxWidth: larg - 2 * MARGEM },
+  );
+
+  // Cards do app
+  const gap = 4;
+  const wc = (larg - 2 * MARGEM - 3 * gap) / 4;
+  let x = MARGEM;
+  const cards: [string, string, boolean][] = [
+    [`MÉDIA I5 · ${periodo.length} MESES`, moeda(mediaI5), true],
+    ["MÉDIA PLD", moeda(mediaPld), false],
+    ["SPREAD I5 - PLD", moeda(mercado.spread), false],
+    ["PLD MÍN – MÁX", `${inteiro(Math.min(...vals))} – ${inteiro(Math.max(...vals))}`, false],
+  ];
+  for (const [r, v, esc] of cards) {
+    cartaoPld(doc, x, 52, wc, r, v, esc);
+    x += wc + gap;
+  }
+
+  // Gráfico
+  const gx = MARGEM + 11, gw = larg - MARGEM - gx - 2;
+  const gy = 100, gh = 108;
+  const maxV = Math.max(...pontos.flatMap((p) => [p.i5, p.pld]), lider?.["Preço Médio (R$/MWh)"] ?? 0, 50);
+  const bruto = maxV / 6;
+  const pot = 10 ** Math.floor(Math.log10(bruto));
+  const f = bruto / pot;
+  const passo = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * pot;
+  const topo = Math.ceil((maxV * 1.1) / passo) * passo;
+  const px = (i: number) => gx + (i * gw) / (pontos.length - 1);
+  const py = (v: number) => gy + gh - (v / topo) * gh;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(...VERDE);
+  doc.text(`Preço de Energia I5 × PLD — Submercado ${nomeSub}`, larg / 2, 92, { align: "center" });
+
+  doc.setLineWidth(0.15);
+  for (let t = 0; t <= topo + 1e-9; t += passo) {
+    doc.setDrawColor(227, 235, 233);
+    doc.line(gx, py(t), gx + gw, py(t));
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.5);
+    doc.setTextColor(...CINZA);
+    doc.text(String(Math.round(t)), gx - 2, py(t) + 1.2, { align: "right" });
+  }
+  doc.setDrawColor(185, 201, 198);
+  doc.line(gx, gy + gh, gx + gw, gy + gh);
+  doc.setFontSize(6.5);
+  doc.text("R$/MWh", MARGEM, gy - 3);
+  const pulo = Math.ceil(pontos.length / 14);
+  pontos.forEach((p, i) => {
+    if (i % pulo === 0) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(6.3);
+      doc.setTextColor(31, 45, 43);
+      doc.text(rotuloMes(p.mes), px(i), gy + gh + 4.5, { align: "center" });
+    }
+  });
+
+  // Linha de referência: preço médio da proposta vencedora
+  const refPreco = lider?.["Preço Médio (R$/MWh)"];
+  if (lider && refPreco != null) {
+    doc.setDrawColor(...AZUL);
+    doc.setLineWidth(0.5);
+    doc.setLineDashPattern([0.8, 1.4], 0);
+    doc.line(gx, py(refPreco), gx + gw, py(refPreco));
+    doc.setLineDashPattern([], 0);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.5);
+    doc.setTextColor(...AZUL);
+    doc.text(`Proposta vencedora (${lider.Fornecedor}): ${num2(refPreco)}`, gx + gw, py(refPreco) - 1.4, { align: "right" });
+  }
+
+  // Curvas
+  const sPld = pontos.map((p, i) => ({ x: px(i), y: py(p.pld) }));
+  const sI5 = pontos.map((p, i) => ({ x: px(i), y: py(p.i5) }));
+  doc.setDrawColor(...AMARELO);
+  doc.setLineWidth(0.7);
+  doc.setLineDashPattern([2, 1.4], 0);
+  curvaSuave(doc, sPld);
+  doc.setLineDashPattern([], 0);
+  doc.setDrawColor(...VERDE);
+  doc.setLineWidth(0.9);
+  curvaSuave(doc, sI5);
+
+  // Rótulos
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(5.8);
+  pontos.forEach((p, i) => {
+    doc.setTextColor(138, 90, 0);
+    doc.text(inteiro(p.pld), px(i), py(p.pld) + 3.6, { align: "center" });
+    doc.setFillColor(...VERDE);
+    doc.circle(px(i), py(p.i5), 0.9, "F");
+    doc.setFillColor(...VERDE_CLARO);
+    doc.setDrawColor(...VERDE);
+    doc.setLineWidth(0.2);
+    doc.roundedRect(px(i) - 3.2, py(p.i5) - 6.2, 6.4, 3.8, 0.7, 0.7, "FD");
+    doc.setTextColor(...VERDE);
+    doc.text(inteiro(p.i5), px(i), py(p.i5) - 3.4, { align: "center" });
+  });
+
+  // Legenda
+  const ly = gy + gh + 11;
+  doc.setLineWidth(0.9);
+  doc.setDrawColor(...VERDE);
+  doc.line(MARGEM + 8, ly, MARGEM + 16, ly);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.setTextColor(...CINZA);
+  doc.text("Energia I5 (PLD + spread)", MARGEM + 18, ly + 1);
+  doc.setLineWidth(0.7);
+  doc.setDrawColor(...AMARELO);
+  doc.setLineDashPattern([2, 1.4], 0);
+  doc.line(MARGEM + 62, ly, MARGEM + 70, ly);
+  doc.setLineDashPattern([], 0);
+  doc.text("PLD médio mensal", MARGEM + 72, ly + 1);
+  if (lider && refPreco != null) {
+    doc.setDrawColor(...AZUL);
+    doc.setLineWidth(0.5);
+    doc.setLineDashPattern([0.8, 1.4], 0);
+    doc.line(MARGEM + 108, ly, MARGEM + 116, ly);
+    doc.setLineDashPattern([], 0);
+    doc.text("Preço médio da proposta vencedora", MARGEM + 118, ly + 1);
+  }
+
+  // Leitura do resultado
+  let yt = ly + 12;
+  if (lider && refPreco != null) {
+    const dif = mediaI5 - refPreco;
+    const pct = (Math.abs(dif) / mediaI5) * 100;
+    doc.setFillColor(...AMARELO_CLARO);
+    doc.roundedRect(MARGEM, yt, larg - 2 * MARGEM, 15, 2, 2, "F");
+    doc.setFillColor(...AMARELO);
+    doc.rect(MARGEM, yt, 2, 15, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9.5);
+    doc.setTextColor(...VERDE);
+    doc.text(
+      `${lider.Fornecedor}: ${moeda(refPreco)}/MWh, ${moeda(Math.abs(dif))} (${num2(pct)}%) ${dif >= 0 ? "abaixo" : "acima"} da média I5 do período`,
+      MARGEM + 6,
+      yt + 6.3,
+      { maxWidth: larg - 2 * MARGEM - 10 },
+    );
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...CINZA);
+    doc.text(`Média I5 do período: ${moeda(mediaI5)}/MWh (PLD médio ${moeda(mediaPld)} + spread ${moeda(mercado.spread)}).`, MARGEM + 6, yt + 11.5);
+    yt += 20;
+  }
+
+  doc.setFont("helvetica", "italic");
+  doc.setFontSize(6.8);
+  doc.setTextColor(...CINZA);
+  const atualiz = mercado.atualizadoEm ? `, atualizado em ${new Date(mercado.atualizadoEm).toLocaleDateString("pt-BR")}` : "";
+  doc.text(
+    doc.splitTextToSize(
+      `Fonte do PLD: ${mercado.fonte}${atualiz}. A Energia I5 é calculada como o PLD médio mensal somado ao spread informado (R$/MWh). Valores históricos de referência; não constituem projeção.`,
+      larg - 2 * MARGEM,
+    ),
+    MARGEM,
+    Math.min(yt, alt - 24),
+  );
+}
+
 /** Gera o relatório de equalização em PDF (retrato) no navegador e dispara o download. */
-export async function gerarRelatorioPdf(resultado: Resultado) {
+export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMercado) {
   const { jsPDF: JsPdf } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
 
@@ -490,6 +750,9 @@ export async function gerarRelatorioPdf(resultado: Resultado) {
     columnStyles: { 0: { cellWidth: 30, fontStyle: "bold" }, 1: { cellWidth: 40 } },
     margin: margem,
   });
+
+  // Página 4: cenário de mercado (PLD × Energia I5)
+  if (mercado) paginaPld(c, resultado, mercado, lider);
 
   // Página final: dados do cliente e parâmetros
   doc.addPage();

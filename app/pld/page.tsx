@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { buscarPld, salvarPld } from "@/lib/api";
-import { baixarPldCcee, type DadosPld } from "@/lib/ccee";
+import { baixarPldCcee, CHAVE_SPREAD, SPREAD_PADRAO, type DadosPld } from "@/lib/ccee";
 
 const SUBS = [
   { chave: "SUDESTE", nome: "Sudeste" },
@@ -16,7 +16,6 @@ const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "o
 const rotuloMes = (k: string) => `${MESES[Number(k.slice(5, 7)) - 1]}/${k.slice(2, 4)}`;
 const moeda = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const inteiro = (v: number) => Math.round(v).toLocaleString("pt-BR");
-const CHAVE_SPREAD = "equalizacao:spread-i5";
 
 /** Curva suave que não ultrapassa os pontos (interpolação monotônica de Fritsch-Carlson). */
 function caminhoSuave(pts: { x: number; y: number }[]): string {
@@ -123,7 +122,7 @@ export default function PaginaPld() {
   const [fonte, setFonte] = useState("");
   const [erro, setErro] = useState("");
   const [carregando, setCarregando] = useState(true);
-  const [spreadTexto, setSpreadTexto] = useState("35");
+  const [spreadTexto, setSpreadTexto] = useState(String(SPREAD_PADRAO));
   const [aviso, setAviso] = useState("");
   const [sub, setSub] = useState<string>("SUL");
   const [de, setDe] = useState("");

@@ -3,6 +3,21 @@ export type DadosPld = Record<string, Record<string, number>>;
 
 const CCEE = "https://dadosabertos.ccee.org.br/api/3/action";
 
+/** Spread I5 − PLD (R$/MWh): chave do navegador e valor inicial, compartilhados pela tela PLD × I5 e pelo relatório. */
+export const CHAVE_SPREAD = "equalizacao:spread-i5";
+export const SPREAD_PADRAO = 35;
+
+export function lerSpreadSalvo(): number {
+  try {
+    const salvo = localStorage.getItem(CHAVE_SPREAD);
+    if (salvo !== null && salvo.trim() !== "") {
+      const n = Number(salvo.replace(",", "."));
+      if (Number.isFinite(n)) return n;
+    }
+  } catch { /* armazenamento indisponível */ }
+  return SPREAD_PADRAO;
+}
+
 async function obter<T>(url: string): Promise<T> {
   const resp = await fetch(url, { headers: { Accept: "application/json" } });
   if (!resp.ok) throw new Error(`CCEE respondeu HTTP ${resp.status}.`);
