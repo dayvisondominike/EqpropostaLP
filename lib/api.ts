@@ -1,5 +1,6 @@
 import { upload } from "@vercel/blob/client";
 import type { Cliente, Params, Proposta, Resultado } from "./types";
+import type { EqualizacaoSalva, ResumoEqualizacao } from "./equalizacoes";
 
 async function postar<T>(caminho: string, corpo: unknown): Promise<T> {
   const resp = await fetch(caminho, {
@@ -58,3 +59,26 @@ export const salvarPld = (dados: Record<string, Record<string, number>>) => post
 
 export const consolidar = (propostas: Proposta[], cliente: Cliente, params?: Partial<Params>) =>
   postar<Resultado>("/api/consolidar", { propostas, cliente, params });
+
+export async function listarEqualizacoes(): Promise<ResumoEqualizacao[]> {
+  const resp = await fetch("/api/equalizacoes", { cache: "no-store" });
+  const json = await resp.json();
+  if (!resp.ok) throw new Error(json.erro ?? `Erro HTTP ${resp.status} ao listar as equalizações.`);
+  return json.itens;
+}
+
+export async function abrirEqualizacao(id: string): Promise<EqualizacaoSalva> {
+  const resp = await fetch(`/api/equalizacoes/${id}`, { cache: "no-store" });
+  const json = await resp.json();
+  if (!resp.ok) throw new Error(json.erro ?? `Erro HTTP ${resp.status} ao abrir a equalização.`);
+  return json;
+}
+
+/** Cria (sem `id`) ou atualiza (com `id`) a equalização no banco e devolve o `id`. */
+export const salvarEqualizacao = (eq: Omit<EqualizacaoSalva, "id" | "criadoEm" | "atualizadoEm"> & { id?: string }) =>
+  postar<{ id: string; resumo: ResumoEqualizacao }>("/api/equalizacoes", eq);
+
+export async function excluirEqualizacao(id: string): Promise<void> {
+  const resp = await fetch(`/api/equalizacoes/${id}`, { method: "DELETE" });
+  if (!resp.ok) throw new Error(((await resp.json().catch(() => ({}))) as { erro?: string }).erro ?? `Erro HTTP ${resp.status} ao excluir.`);
+}
