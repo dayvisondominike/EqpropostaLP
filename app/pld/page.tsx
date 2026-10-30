@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { buscarPld } from "@/lib/api";
-import { baixarPldCcee, mesclarPld, type DadosPld } from "@/lib/ccee";
+import { buscarPld, salvarPld } from "@/lib/api";
+import { baixarPldCcee, type DadosPld } from "@/lib/ccee";
 import { lerPlanilhaI5, modeloCsvI5, type SerieI5 } from "@/lib/i5";
 
 const SUBS = [
@@ -18,7 +18,6 @@ const rotuloMes = (k: string) => `${MESES[Number(k.slice(5, 7)) - 1]}/${k.slice(
 const moeda = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const inteiro = (v: number) => Math.round(v).toLocaleString("pt-BR");
 const CHAVE_STORAGE = "equalizacao:i5";
-const CHAVE_PLD = "equalizacao:pld";
 
 /** Curva suave que não ultrapassa os pontos (interpolação monotônica de Fritsch-Carlson). */
 function caminhoSuave(pts: { x: number; y: number }[]): string {
@@ -132,46 +131,37 @@ export default function PaginaPld() {
   const [ate, setAte] = useState("");
   const arquivo = useRef<HTMLInputElement>(null);
 
-  const [atualizacao, setAtualizacao] = useState<{ em: string; dados: DadosPld } | null>(null);
+  const [atualizadoEm, setAtualizadoEm] = useState<string | null>(null);
   const [atualizando, setAtualizando] = useState(false);
-  const [pldServidor, setPldServidor] = useState<DadosPld>({});
+  const [pld, setPld] = useState<DadosPld>({});
 
   useEffect(() => {
     buscarPld()
-      .then((r) => { setPldServidor(r.dados); setFonte(r.fonte); })
+      .then((r) => { setPld(r.dados); setFonte(r.fonte); setAtualizadoEm(r.atualizadoEm); })
       .catch((e) => setErro((e as Error).message))
       .finally(() => setCarregando(false));
     try {
       const salvo = localStorage.getItem(CHAVE_STORAGE);
       if (salvo) setI5(JSON.parse(salvo));
-      const pldSalvo = localStorage.getItem(CHAVE_PLD);
-      if (pldSalvo) setAtualizacao(JSON.parse(pldSalvo));
     } catch { /* armazenamento indisponível: segue sem histórico I5 */ }
   }, []);
-
-  const pld = useMemo(() => (atualizacao ? mesclarPld(pldServidor, atualizacao.dados) : pldServidor), [pldServidor, atualizacao]);
 
   async function atualizarPld() {
     setAtualizando(true);
     setAviso("");
     try {
       const dados = await baixarPldCcee();
-      const novo = { em: new Date().toISOString(), dados };
-      setAtualizacao(novo);
-      try { localStorage.setItem(CHAVE_PLD, JSON.stringify(novo)); } catch { /* ignora */ }
+      const r = await salvarPld(dados);
+      setPld(r.dados);
+      setFonte(r.fonte);
+      setAtualizadoEm(r.atualizadoEm);
       const meses = Object.values(dados).reduce((n, m) => n + Object.keys(m).length, 0);
-      setAviso(`PLD atualizado direto da CCEE (${meses} registros mensais).`);
+      setAviso(`Banco de dados atualizado com ${meses} registros mensais da CCEE.`);
     } catch (e) {
-      setAviso(`Não foi possível atualizar pela CCEE: ${(e as Error).message} Os dados atuais foram mantidos.`);
+      setAviso(`Não foi possível atualizar: ${(e as Error).message} Os dados atuais foram mantidos.`);
     } finally {
       setAtualizando(false);
     }
-  }
-
-  function voltarCopia() {
-    setAtualizacao(null);
-    try { localStorage.removeItem(CHAVE_PLD); } catch { /* ignora */ }
-    setAviso("PLD voltou à cópia do servidor.");
   }
 
   const mesesPld = useMemo(() => Object.keys(pld[sub] ?? {}).sort(), [pld, sub]);
@@ -269,10 +259,9 @@ export default function PaginaPld() {
             </div>
           </div>
           <div className="grupo">
-            <label>Dados da CCEE (PLD)</label>
+            <label>Banco de dados do PLD (CCEE)</label>
             <div className="linha" style={{ flexWrap: "nowrap" }}>
               <button onClick={atualizarPld} disabled={atualizando}>{atualizando ? "Atualizando…" : "Atualizar PLD"}</button>
-              {atualizacao && <button className="sec" onClick={voltarCopia} title="Descartar a atualização feita neste navegador">Cópia</button>}
             </div>
           </div>
           <div className="grupo">
@@ -312,7 +301,7 @@ export default function PaginaPld() {
           )}
         </div>
         <p className="nota" style={{ marginTop: 10 }}>
-          Fonte do PLD: {atualizacao ? `CCEE Dados Abertos, atualizado neste navegador em ${new Date(atualizacao.em).toLocaleString("pt-BR")}` : fonte || "—"}. O histórico de Energia I5 fica salvo apenas neste navegador.
+          Fonte do PLD: {fonte || "—"}{atualizadoEm ? `, atualizado em ${new Date(atualizadoEm).toLocaleString("pt-BR")}` : ""}. O histórico de Energia I5 fica salvo apenas neste navegador.
         </p>
       </main>
       <div className="ticker" aria-hidden>

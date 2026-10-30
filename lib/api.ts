@@ -45,9 +45,16 @@ export type RespostaFornecedor = {
 export const extrairFornecedor = (fornecedor: string, urls: string[]) =>
   postar<RespostaFornecedor>("/api/extrair", { fornecedor, urls });
 
-export type RespostaPld = { fonte: string; dados: Record<string, Record<string, number>> };
+export type RespostaPld = { fonte: string; atualizadoEm: string | null; dados: Record<string, Record<string, number>> };
 
-export const buscarPld = () => postar<RespostaPld>("/api/pld", {});
+export async function buscarPld(): Promise<RespostaPld> {
+  const resp = await fetch("/api/pld", { cache: "no-store" });
+  if (!resp.ok) throw new Error(`Erro HTTP ${resp.status} ao ler o histórico do PLD.`);
+  return resp.json();
+}
+
+/** Grava no banco (Vercel Blob) os dados baixados da CCEE e devolve o histórico consolidado. */
+export const salvarPld = (dados: Record<string, Record<string, number>>) => postar<RespostaPld>("/api/pld", { dados });
 
 export const consolidar = (propostas: Proposta[], cliente: Cliente, params?: Partial<Params>) =>
   postar<Resultado>("/api/consolidar", { propostas, cliente, params });
