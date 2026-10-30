@@ -255,7 +255,7 @@ export default function PaginaPld() {
 
         <div className="metricas pld-kpis">
           <div className="metrica destaque-escuro">
-            <div className="rotulo">MÉDIA I5{comI5.length ? ` · ${comI5.length} MESES` : ""}</div>
+            <div className="rotulo">MÉDIA i5</div>
             <div className="valor">{mediaI5 != null ? moeda(mediaI5) : "—"}</div>
           </div>
           <div className="metrica"><div className="rotulo">MÉDIA PLD</div><div className="valor">{mediaPld != null ? moeda(mediaPld) : "—"}</div></div>
