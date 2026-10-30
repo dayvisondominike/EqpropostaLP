@@ -141,3 +141,24 @@ tr.lider .rank { background: var(--amarelo); }
   .topo-interno { padding-right: 64px; }
   .hbar { grid-template-columns: 80px 1fr; }
 }
+
+/* Consulta PLD x Energia I5 */
+.topo .voltar { display: inline-block; margin-top: 12px; color: #fff; font-size: 14px; font-weight: 500; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,.5); }
+.topo h1 i { font-size: 30px; }
+.link-pld { display: inline-block; margin-top: 12px; margin-left: 10px; padding: 4px 14px; border-radius: 999px; background: var(--amarelo); color: var(--verde); font-size: 14px; font-weight: 700; text-decoration: none; }
+.pld-barra { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: flex-end; background: var(--cartao); border: 1px solid var(--borda); border-radius: 12px; padding: 14px 18px; box-shadow: var(--sombra); }
+.pld-barra .grupo { min-width: 0; }
+.pld-barra select { width: auto; }
+.seg { display: inline-flex; border: 1px solid var(--borda); border-radius: 10px; overflow: hidden; background: #fff; }
+.seg button { background: #fff; color: var(--texto); border-radius: 0; padding: 8px 14px; font-weight: 500; }
+.seg button:hover:not(:disabled) { background: var(--verde-claro); }
+.seg button.ativo { background: var(--verde); color: #fff; font-weight: 700; }
+.pld-kpis { margin-top: 14px; }
+.metrica.destaque-escuro { background: var(--verde); border-top-color: var(--amarelo); }
+.metrica.destaque-escuro .valor { color: var(--amarelo); }
+.metrica.destaque-escuro .rotulo { color: #cfe6e2; }
+.pld-grafico h2 { margin: 4px 0 8px; text-align: center; font-size: 18px; font-weight: 700; color: var(--verde); }
+.legenda { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; font-size: 13px; color: var(--texto-suave); margin-top: 4px; }
+.legenda i { display: inline-block; width: 28px; height: 0; vertical-align: middle; margin-right: 8px; }
+.legenda .l-i5 { border-top: 3px solid var(--verde); }
+.legenda .l-pld { border-top: 3px dashed var(--amarelo); }

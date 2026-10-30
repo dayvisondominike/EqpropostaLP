@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { gerarRelatorioPdf } from "@/lib/relatorio";
 import { consolidar, enviarPdf, extrairCliente, extrairFornecedor } from "@/lib/api";
@@ -163,6 +164,7 @@ export default function Home() {
           <h1>Equalização <i>de propostas</i></h1>
           <p>Compare propostas de fornecedores por Preço Médio, VPL e aderência ao produto do cliente.</p>
           {cliente?.["Razão Social"] && <span className="cliente">Cliente: {cliente["Razão Social"]}</span>}
+          <Link className="link-pld" href="/pld">PLD × Energia I5 →</Link>
         </div>
       </div>
       <div className="faixa" />

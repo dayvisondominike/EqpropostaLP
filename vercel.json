@@ -11,6 +11,7 @@
   "rewrites": [
     { "source": "/api/cliente", "destination": "/api/cliente.py" },
     { "source": "/api/extrair", "destination": "/api/extrair.py" },
-    { "source": "/api/consolidar", "destination": "/api/consolidar.py" }
+    { "source": "/api/consolidar", "destination": "/api/consolidar.py" },
+    { "source": "/api/pld", "destination": "/api/pld.py" }
   ]
 }

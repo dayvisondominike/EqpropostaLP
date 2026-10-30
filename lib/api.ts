@@ -45,5 +45,9 @@ export type RespostaFornecedor = {
 export const extrairFornecedor = (fornecedor: string, urls: string[]) =>
   postar<RespostaFornecedor>("/api/extrair", { fornecedor, urls });
 
+export type RespostaPld = { fonte: string; dados: Record<string, Record<string, number>> };
+
+export const buscarPld = () => postar<RespostaPld>("/api/pld", {});
+
 export const consolidar = (propostas: Proposta[], cliente: Cliente, params?: Partial<Params>) =>
   postar<Resultado>("/api/consolidar", { propostas, cliente, params });
