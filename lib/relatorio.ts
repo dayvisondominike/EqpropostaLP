@@ -244,46 +244,135 @@ function colunasPorAno(doc: jsPDF, x: number, y: number, w: number, h: number, d
   });
 }
 
-type Contato = { nome: string; celular: string; telefone: string; site: string; empresa: string; email: string };
+type Item = { rotulo: string; valor: string; destaque?: boolean; colunas?: number };
+
+/** Painel de dados: faixa de título e grade de 3 colunas (rótulo pequeno + valor em destaque). Retorna o Y logo abaixo. */
+function painelDados(doc: jsPDF, larg: number, y: number, titulo: string, itens: Item[]): number {
+  const w = larg - 2 * MARGEM;
+  const colunas = 3;
+  const largCol = (w - 12) / colunas;
+  const linhas: { item: Item; col: number; lin: number; texto: string[] }[] = [];
+  let col = 0;
+  let lin = 0;
+  doc.setFont("helvetica", "bold");
+  for (const item of itens) {
+    const span = item.colunas ?? 1;
+    if (col + span > colunas) { col = 0; lin++; }
+    doc.setFontSize(item.destaque ? 13 : 10.5);
+    linhas.push({ item, col, lin, texto: doc.splitTextToSize(item.valor, largCol * span - 4) });
+    col += span;
+    if (col >= colunas) { col = 0; lin++; }
+  }
+  const nLinhas = linhas.reduce((m, l) => Math.max(m, l.lin), 0) + 1;
+  const alturas = Array.from({ length: nLinhas }, (_, i) =>
+    Math.max(...linhas.filter((l) => l.lin === i).map((l) => 8 + l.texto.length * (l.item.destaque ? 5.6 : 4.8))) + 3,
+  );
+  const hCorpo = alturas.reduce((a, b) => a + b, 0) + 4;
+
+  doc.setFillColor(...VERDE_CLARO);
+  doc.roundedRect(MARGEM, y, w, 10 + hCorpo, 3, 3, "F");
+  doc.setFillColor(...VERDE);
+  doc.roundedRect(MARGEM, y, w, 10, 3, 3, "F");
+  doc.rect(MARGEM, y + 5, w, 5, "F");
+  doc.setFillColor(...AMARELO);
+  doc.rect(MARGEM, y + 10, w, 1, "F");
+  doc.setTextColor(...AMARELO);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("//", MARGEM + 5, y + 7.2);
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(10);
+  doc.text(titulo.toUpperCase(), MARGEM + 12, y + 6.9, { charSpace: 0.4 });
+
+  const topoLinha = (i: number) => y + 15 + alturas.slice(0, i).reduce((a, b) => a + b, 0);
+  for (const { item, col: c, lin: l, texto } of linhas) {
+    const x = MARGEM + 6 + c * largCol;
+    const yy = topoLinha(l);
+    if (l > 0) {
+      doc.setDrawColor(...BORDA);
+      doc.setLineWidth(0.2);
+      doc.line(MARGEM + 6, yy - 2, MARGEM + w - 6, yy - 2);
+    }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.5);
+    doc.setTextColor(...CINZA);
+    doc.text(item.rotulo.toUpperCase(), x, yy + 2, { charSpace: 0.3 });
+    doc.setFontSize(item.destaque ? 13 : 10.5);
+    doc.setTextColor(...VERDE);
+    doc.text(texto, x, yy + (item.destaque ? 8 : 7.3), { lineHeightFactor: 1.2 });
+  }
+  return y + 10 + hCorpo;
+}
+
+type Contato = {
+  nome: string;
+  cargo?: string;
+  telefones: { rotulo: string; numero: string }[];
+  site: string;
+  empresa: string;
+  email: string;
+};
 
 const CONTATOS: Contato[] = [
-  { nome: "Dayvison Dominike", celular: "81 98842.3816", telefone: "54 3451.1413", site: "Ludfor.com.br", empresa: "Ludfor Energia", email: "dayvison.dominike@ludfor.com.br" },
-  { nome: "Jefferson Carneiro", celular: "81 99127.1115", telefone: "54 3451.1413", site: "Ludfor.com.br", empresa: "Ludfor Energia", email: "jefferson.carneiro@ludfor.com.br" },
+  {
+    nome: "Dayvison Dominike",
+    telefones: [
+      { rotulo: "Celular / WhatsApp", numero: "81 98842.3816" },
+      { rotulo: "Telefone", numero: "54 3451.1413" },
+    ],
+    site: "Ludfor.com.br",
+    empresa: "Ludfor Energia",
+    email: "dayvison.dominike@ludfor.com.br",
+  },
+  {
+    nome: "Jefferson Carneiro",
+    telefones: [
+      { rotulo: "Celular / WhatsApp", numero: "81 99127.1115" },
+      { rotulo: "Telefone", numero: "54 3451.1413" },
+    ],
+    site: "Ludfor.com.br",
+    empresa: "Ludfor Energia",
+    email: "jefferson.carneiro@ludfor.com.br",
+  },
 ];
 
-/** Cartão de contato: faixa em degradê com o nome e as linhas de dados. Retorna o Y logo abaixo. */
+/** Cartão de contato: faixa em degradê com o nome, telefones à esquerda e site, empresa e e-mail à direita. */
 function cartaoContato(doc: jsPDF, larg: number, y: number, p: Contato): number {
   const w = larg - 2 * MARGEM;
-  const h = 76;
+  const nTel = p.telefones.length;
+  const h = 26 + Math.max(nTel, 3) * 11 + 4;
   doc.setFillColor(...VERDE_CLARO);
   doc.roundedRect(MARGEM, y, w, h, 3, 3, "F");
-  faixaGradiente(doc, MARGEM, y, w, 16);
+  faixaGradiente(doc, MARGEM, y, w, 17);
   doc.setFillColor(...AMARELO);
-  doc.rect(MARGEM, y + 16, w, 1.2, "F");
+  doc.rect(MARGEM, y + 17, w, 1.2, "F");
+  trapezio(doc, MARGEM, y + 3, 4, 11, true);
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(15);
-  doc.text(p.nome, MARGEM + 8, y + 10.5);
+  doc.text(p.nome, MARGEM + 9, y + 11);
 
-  const linhas: [string, string][] = [
-    ["Celular / WhatsApp", p.celular],
-    ["Telefone", p.telefone],
-    ["Site", p.site],
-    ["Empresa", p.empresa],
-    ["E-mail", p.email],
-  ];
-  linhas.forEach(([rotulo, valor], i) => {
-    const yy = y + 27 + i * 9.5;
+  const campo = (x: number, yy: number, rotulo: string, valor: string, maxW: number) => {
     doc.setFillColor(...AMARELO);
-    doc.circle(MARGEM + 10, yy - 1.2, 2.4, "F");
-    doc.setTextColor(...CINZA);
+    doc.circle(x + 1.6, yy - 1.1, 1.6, "F");
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.text(rotulo.toUpperCase(), MARGEM + 17, yy);
+    doc.setFontSize(6.5);
+    doc.setTextColor(...CINZA);
+    doc.text(rotulo.toUpperCase(), x + 6, yy - 2.4, { charSpace: 0.3 });
+    doc.setFontSize(10.5);
     doc.setTextColor(...VERDE);
-    doc.setFontSize(11);
-    doc.text(valor, MARGEM + 62, yy);
-  });
+    doc.text(valor, x + 6, yy + 2.6, { maxWidth: maxW });
+  };
+
+  const xEsq = MARGEM + 8;
+  const xDir = MARGEM + w / 2 + 2;
+  p.telefones.forEach((t, i) => campo(xEsq, y + 30 + i * 11, t.rotulo, t.numero, w / 2 - 16));
+  campo(xDir, y + 30, "Site", p.site, w / 2 - 14);
+  campo(xDir, y + 41, "Empresa", p.empresa, w / 2 - 14);
+  campo(xDir, y + 52, "E-mail", p.email, w / 2 - 14);
+  doc.setDrawColor(...BORDA);
+  doc.setLineWidth(0.3);
+  doc.line(MARGEM + w / 2 - 2, y + 24, MARGEM + w / 2 - 2, y + h - 5);
   return y + h;
 }
 
@@ -404,36 +493,36 @@ export async function gerarRelatorioPdf(resultado: Resultado) {
   // Página final: dados do cliente e parâmetros
   doc.addPage();
   cabecalhoPagina(c, "Premissas", "Cliente e Parâmetros");
-  const campos = ["Razão Social", "CNPJ", "Modalidade", "Tipo de Energia", "Submercado", "Período", "Volume (MWm)", "Flexibilidade", "Sazo", "Modulação"];
-  tituloSecao(doc, "Dados do cliente", 46);
-  autoTable(doc, {
-    startY: 50,
-    body: campos.map((k) => [k, String(cliente[k] ?? "—")]),
-    theme: "grid",
-    styles: { fontSize: 8.5, cellPadding: 2, lineColor: BORDA },
-    columnStyles: { 0: { fontStyle: "bold", textColor: CINZA, cellWidth: 50, fillColor: VERDE_CLARO } },
-    margin: margem,
-  });
-  const yPar = finalY() + 12;
-  tituloSecao(doc, "Parâmetros de cálculo e aderência", yPar);
-  autoTable(doc, {
-    startY: yPar + 4,
-    body: [
-      ["TMA (% a.a.)", String(params.tma_pct)],
-      ["Horas por ano", String(params.horas_por_ano)],
-      ["Ano base", String(params.ano_base)],
-      ["Fonte incentivada exigida (%)", String(params.fonte_percentual)],
-      ["Submercado", params.submercado],
-      ["Período", `${params.ano_inicio} a ${params.ano_fim}`],
-      ["Modulação", params.modulacao],
-      ["Flexibilidade (+ / −) %", `${params.flex_superior} / ${params.flex_inferior}`],
-      ["Sazonalização", params.sazonalizacao === "Personalizada" ? `Personalizada (+${params.sazo_superior}% / −${params.sazo_inferior}%)` : "Flat"],
-    ],
-    theme: "grid",
-    styles: { fontSize: 8.5, cellPadding: 2, lineColor: BORDA },
-    columnStyles: { 0: { fontStyle: "bold", textColor: CINZA, cellWidth: 50, fillColor: VERDE_CLARO } },
-    margin: margem,
-  });
+  const dado = (k: string) => String(cliente[k] ?? "—");
+  let yp = 46;
+  yp = painelDados(doc, larg, yp, "Dados do cliente", [
+    { rotulo: "Razão social", valor: dado("Razão Social"), destaque: true, colunas: 3 },
+    { rotulo: "CNPJ", valor: dado("CNPJ") },
+    { rotulo: "Modalidade", valor: dado("Modalidade") },
+    { rotulo: "Tipo de energia", valor: dado("Tipo de Energia") },
+    { rotulo: "Submercado", valor: dado("Submercado") },
+    { rotulo: "Período", valor: dado("Período") },
+    { rotulo: "Volume (MWm)", valor: dado("Volume (MWm)") },
+    { rotulo: "Flexibilidade", valor: dado("Flexibilidade") },
+    { rotulo: "Sazonalização", valor: dado("Sazo") },
+    { rotulo: "Modulação", valor: dado("Modulação") },
+  ]) + 8;
+  yp = painelDados(doc, larg, yp, "Parâmetros de cálculo", [
+    { rotulo: "TMA (% a.a.)", valor: num2(params.tma_pct) },
+    { rotulo: "Horas por ano", valor: String(params.horas_por_ano) },
+    { rotulo: "Ano base", valor: String(params.ano_base) },
+  ]) + 8;
+  painelDados(doc, larg, yp, "Premissas de aderência", [
+    { rotulo: "Fonte incentivada exigida", valor: `${params.fonte_percentual}%` },
+    { rotulo: "Submercado", valor: params.submercado },
+    { rotulo: "Período de fornecimento", valor: `${params.ano_inicio} a ${params.ano_fim}` },
+    { rotulo: "Modulação", valor: params.modulacao },
+    { rotulo: "Flexibilidade (+ / -)", valor: `+${params.flex_superior}% / -${params.flex_inferior}%` },
+    {
+      rotulo: "Sazonalização",
+      valor: params.sazonalizacao === "Personalizada" ? `Personalizada (+${params.sazo_superior}% / -${params.sazo_inferior}%)` : "Flat",
+    },
+  ]);
 
   // Página de contatos
   doc.addPage();
@@ -446,6 +535,18 @@ export async function gerarRelatorioPdf(resultado: Resultado) {
   for (const p of CONTATOS) {
     yc = cartaoContato(doc, larg, yc, p) + 14;
   }
+  // Faixa de encerramento, no estilo da capa.
+  const yFaixa = alt - 50;
+  faixaGradiente(doc, MARGEM, yFaixa, larg - 2 * MARGEM, 26);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text("Obrigado pela confiança", MARGEM + 8, yFaixa + 9, { charSpace: 0.6 });
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.text("Ludfor Energia", MARGEM + 8, yFaixa + 20);
+  doc.setFontSize(8.5);
+  ["ENERGIA", "SOLIDEZ", "RESULTADO"].forEach((t, i) => doc.text(t, larg - MARGEM - 8, yFaixa + 9 + i * 5.5, { align: "right", charSpace: 0.8 }));
 
   // Rodapé em todas as páginas (exceto a capa) e numeração
   const total = doc.getNumberOfPages();
