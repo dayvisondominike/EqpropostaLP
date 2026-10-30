@@ -77,3 +77,8 @@ export async function abrirEqualizacao(id: string): Promise<EqualizacaoSalva> {
 /** Cria (sem `id`) ou atualiza (com `id`) a equalização no banco e devolve o `id`. */
 export const salvarEqualizacao = (eq: Omit<EqualizacaoSalva, "id" | "criadoEm" | "atualizadoEm"> & { id?: string }) =>
   postar<{ id: string; resumo: ResumoEqualizacao }>("/api/equalizacoes", eq);
+
+export async function excluirEqualizacao(id: string): Promise<void> {
+  const resp = await fetch(`/api/equalizacoes/${id}`, { method: "DELETE" });
+  if (!resp.ok) throw new Error(((await resp.json().catch(() => ({}))) as { erro?: string }).erro ?? `Erro HTTP ${resp.status} ao excluir.`);
+}

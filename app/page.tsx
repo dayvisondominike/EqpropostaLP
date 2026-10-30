@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { lerSpreadSalvo } from "@/lib/ccee";
 import { gerarRelatorioPdf, type DadosMercado } from "@/lib/relatorio";
-import { abrirEqualizacao, buscarPld, consolidar, enviarPdf, extrairCliente, extrairFornecedor, listarEqualizacoes, salvarEqualizacao } from "@/lib/api";
+import { abrirEqualizacao, buscarPld, consolidar, enviarPdf, excluirEqualizacao, extrairCliente, extrairFornecedor, listarEqualizacoes, salvarEqualizacao } from "@/lib/api";
 import type { ResumoEqualizacao } from "@/lib/equalizacoes";
 import {
   SUBMERCADOS,
@@ -103,6 +103,20 @@ export default function Home() {
       setTela("equalizacao");
     } catch (e) {
       setErroLista((e as Error).message);
+    } finally {
+      setAbrindo("");
+    }
+  }
+
+  async function excluirExistente(e: ResumoEqualizacao) {
+    if (!window.confirm(`Excluir definitivamente a equalização de "${e.razaoSocial}"? Esta ação não pode ser desfeita.`)) return;
+    setAbrindo(e.id);
+    setErroLista("");
+    try {
+      await excluirEqualizacao(e.id);
+      setExistentes((lista) => (lista ?? []).filter((x) => x.id !== e.id));
+    } catch (err) {
+      setErroLista((err as Error).message);
     } finally {
       setAbrindo("");
     }
@@ -295,7 +309,10 @@ export default function Home() {
                   <td>{e.lider}</td>
                   <td>{e.propostas}</td>
                   <td>{new Date(e.atualizadoEm).toLocaleString("pt-BR")}</td>
-                  <td><button className="sec" onClick={() => abrirExistente(e.id)} disabled={abrindo !== ""}>{abrindo === e.id ? "Abrindo…" : "Abrir"}</button></td>
+                  <td className="acoes-linha">
+                    <button className="sec" onClick={() => abrirExistente(e.id)} disabled={abrindo !== ""}>{abrindo === e.id ? "Aguarde…" : "Abrir"}</button>
+                    <button className="sec perigo" onClick={() => excluirExistente(e)} disabled={abrindo !== ""}>Excluir</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
