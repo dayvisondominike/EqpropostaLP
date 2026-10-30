@@ -147,27 +147,33 @@ export default function Home() {
       .map((x) => ({ ano: x.m![1], preco: x.v as number }));
   }, [propostaLider]);
   const maxPreco = Math.max(1, ...precosLider.map((p) => p.preco));
+  const comparativo = (resultado?.ranking ?? []).filter((r) => r["Preço Médio (R$/MWh)"] != null);
+  const maxMedio = Math.max(1, ...comparativo.map((r) => r["Preço Médio (R$/MWh)"] ?? 0));
 
   const setP = <K extends keyof Params>(k: K, v: Params[K]) => setParams((p) => (p ? { ...p, [k]: v } : p));
   const num = (v: string) => (v === "" ? 0 : Number(v));
 
   return (
-    <main>
-      <div className="header">
-        <div className="icone">⚡</div>
-        <div>
-          <h1>Equalização de Propostas — Mercado Livre de Energia</h1>
-          <p>{cliente?.["Razão Social"] ? `Cliente: ${cliente["Razão Social"]}` : "Envie os PDFs para começar"}</p>
+    <>
+    <header>
+      <div className="topo">
+        <div className="topo-interno">
+          <div className="marca">Mercado Livre de Energia</div>
+          <h1>Equalização de <b>PROPOSTAS</b></h1>
+          <p>Compare propostas de fornecedores por Preço Médio, VPL e aderência ao produto do cliente.</p>
+          {cliente?.["Razão Social"] && <span className="cliente">Cliente: {cliente["Razão Social"]}</span>}
         </div>
       </div>
-
-      <div className="secao">1. E-mail de cotação do cliente</div>
+      <div className="faixa" />
+    </header>
+    <main>
+      <div className="secao"><span className="num">1</span>E-mail de cotação do cliente</div>
       <div className="cartao">
         <label htmlFor="email">PDF do e-mail (características do produto)</label>
         <input id="email" type="file" accept="application/pdf" disabled={ocupado} onChange={(e) => setEmail(e.target.files?.[0] ?? null)} />
       </div>
 
-      <div className="secao">2. Propostas dos fornecedores</div>
+      <div className="secao"><span className="num">2</span>Propostas dos fornecedores</div>
       <div className="cartao">
         <div className="linha">
           <div style={{ flex: "1 1 180px" }}>
@@ -203,9 +209,9 @@ export default function Home() {
         )}
       </div>
 
-      <div style={{ marginTop: 18 }}>
-        <button onClick={processar} disabled={ocupado || !email || fornecedores.length === 0}>
-          ▶ Processar Equalização
+      <div className="acao">
+        <button className="destaque" onClick={processar} disabled={ocupado || !email || fornecedores.length === 0}>
+          {ocupado ? "Processando…" : "▶ Processar equalização"}
         </button>
         {(ocupado || progresso > 0) && (
           <>
@@ -241,20 +247,35 @@ export default function Home() {
           </div>
 
           {precosLider.length > 0 && (
-            <div className="cartao" style={{ marginTop: 14 }}>
-              <strong>Curva de preço — {lider.Fornecedor} (R$/MWh)</strong>
-              <svg viewBox={`0 0 ${precosLider.length * 100} 130`} width="100%" style={{ maxHeight: 180, marginTop: 8 }} role="img" aria-label="Preço por ano do primeiro colocado">
-                {precosLider.map((p, i) => {
-                  const h = (p.preco / maxPreco) * 80;
-                  return (
-                    <g key={p.ano}>
-                      <rect x={i * 100 + 20} y={100 - h} width={60} height={h} fill="#1f6f52" rx={4} />
-                      <text x={i * 100 + 50} y={94 - h} textAnchor="middle" fontSize={12} fill="#2b2b23">{p.preco.toFixed(2)}</text>
-                      <text x={i * 100 + 50} y={118} textAnchor="middle" fontSize={12} fill="#6b6b5e">{p.ano}</text>
-                    </g>
-                  );
-                })}
-              </svg>
+            <div className="grafico">
+              <div className="cartao">
+                <h3>Curva de preço — {lider.Fornecedor} (R$/MWh)</h3>
+                <svg viewBox={`0 0 ${precosLider.length * 100} 130`} width="100%" style={{ maxHeight: 200 }} role="img" aria-label="Preço por ano do primeiro colocado">
+                  {precosLider.map((p, i) => {
+                    const h = (p.preco / maxPreco) * 80;
+                    return (
+                      <g key={p.ano}>
+                        <rect x={i * 100 + 20} y={100 - h} width={60} height={h} fill={["#236c5f", "#108b75", "#70baac"][i % 3]} rx={4} />
+                        <text x={i * 100 + 50} y={94 - h} textAnchor="middle" fontSize={12} fontWeight={700} fill="#1f2d2b">{p.preco.toFixed(2)}</text>
+                        <text x={i * 100 + 50} y={118} textAnchor="middle" fontSize={12} fill="#5f6f6c">{p.ano}</text>
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+              <div className="cartao">
+                <h3>Preço médio por proposta (R$/MWh)</h3>
+                {comparativo.map((r) => (
+                  <div className="hbar" key={r.Fornecedor}>
+                    <div className="nome" title={r.Fornecedor}>{r.Fornecedor}</div>
+                    <div className="trilho">
+                      <div className={`preenche ${r.Rank === lider.Rank ? "lider" : ""}`} style={{ width: `${Math.max(12, ((r["Preço Médio (R$/MWh)"] ?? 0) / maxMedio) * 100)}%` }}>
+                        {(r["Preço Médio (R$/MWh)"] ?? 0).toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -269,7 +290,7 @@ export default function Home() {
               <tbody>
                 {resultado.ranking.map((r) => (
                   <tr key={r.Fornecedor} className={r.Rank === 1 ? "lider" : ""}>
-                    <td>{r.Rank}</td>
+                    <td><span className="rank">{r.Rank}</span></td>
                     <td>{r.Fornecedor}</td>
                     <td>{r.Flex}</td>
                     <td>{r["Tipo de Proposta"]}</td>
@@ -325,10 +346,12 @@ export default function Home() {
           </div>
 
           <div className="secao">Exportar</div>
-          <button onClick={() => baixarXlsx(resultado.xlsx)}>⬇️ Baixar planilha de equalização (.xlsx)</button>
+          <button className="destaque" onClick={() => baixarXlsx(resultado.xlsx)}>⬇ Baixar planilha de equalização (.xlsx)</button>
           <p className="nota">O relatório em Word (.docx) será adicionado na Fase 2.</p>
         </>
       )}
     </main>
+    <footer className="rodape"><b>ENERGIA · SOLIDEZ · RESULTADO</b> — Equalização de propostas do Mercado Livre de Energia</footer>
+    </>
   );
 }
