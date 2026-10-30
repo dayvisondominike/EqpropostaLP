@@ -240,7 +240,7 @@ export default function PaginaPld() {
             </div>
           </div>
           <div className="grupo">
-            <label htmlFor="spread-i5">Spread I5 sobre o PLD (R$/MWh)</label>
+            <label htmlFor="spread-i5">Spread I5 − PLD (R$/MWh)</label>
             <input
               id="spread-i5"
               className="campo-spread"
