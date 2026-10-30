@@ -14,8 +14,7 @@
     "jspdf-autotable": "^3.8.4",
     "next": "^15.5.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "read-excel-file": "^5.8.5"
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

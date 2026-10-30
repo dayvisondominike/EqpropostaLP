@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { buscarPld, salvarPld } from "@/lib/api";
 import { baixarPldCcee, type DadosPld } from "@/lib/ccee";
-import { lerPlanilhaI5, modeloCsvI5, type SerieI5 } from "@/lib/i5";
 
 const SUBS = [
   { chave: "SUDESTE", nome: "Sudeste" },
@@ -17,7 +16,7 @@ const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "o
 const rotuloMes = (k: string) => `${MESES[Number(k.slice(5, 7)) - 1]}/${k.slice(2, 4)}`;
 const moeda = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const inteiro = (v: number) => Math.round(v).toLocaleString("pt-BR");
-const CHAVE_STORAGE = "equalizacao:i5";
+const CHAVE_SPREAD = "equalizacao:spread-i5";
 
 /** Curva suave que não ultrapassa os pontos (interpolação monotônica de Fritsch-Carlson). */
 function caminhoSuave(pts: { x: number; y: number }[]): string {
@@ -124,12 +123,13 @@ export default function PaginaPld() {
   const [fonte, setFonte] = useState("");
   const [erro, setErro] = useState("");
   const [carregando, setCarregando] = useState(true);
-  const [i5, setI5] = useState<SerieI5>({});
+  const [spreadTexto, setSpreadTexto] = useState("35");
   const [aviso, setAviso] = useState("");
   const [sub, setSub] = useState<string>("SUL");
   const [de, setDe] = useState("");
   const [ate, setAte] = useState("");
-  const arquivo = useRef<HTMLInputElement>(null);
+  const spreadNum = Number(spreadTexto.replace(",", "."));
+  const spread = spreadTexto.trim() !== "" && Number.isFinite(spreadNum) ? spreadNum : null;
 
   const [atualizadoEm, setAtualizadoEm] = useState<string | null>(null);
   const [atualizando, setAtualizando] = useState(false);
@@ -141,9 +141,9 @@ export default function PaginaPld() {
       .catch((e) => setErro((e as Error).message))
       .finally(() => setCarregando(false));
     try {
-      const salvo = localStorage.getItem(CHAVE_STORAGE);
-      if (salvo) setI5(JSON.parse(salvo));
-    } catch { /* armazenamento indisponível: segue sem histórico I5 */ }
+      const salvo = localStorage.getItem(CHAVE_SPREAD);
+      if (salvo !== null) setSpreadTexto(salvo);
+    } catch { /* armazenamento indisponível: segue com o spread padrão */ }
   }, []);
 
   async function atualizarPld() {
@@ -165,7 +165,7 @@ export default function PaginaPld() {
   }
 
   const mesesPld = useMemo(() => Object.keys(pld[sub] ?? {}).sort(), [pld, sub]);
-  const mesesTodos = useMemo(() => Array.from(new Set([...mesesPld, ...Object.keys(i5[sub] ?? {})])).sort(), [mesesPld, i5, sub]);
+  const mesesTodos = mesesPld;
 
   useEffect(() => {
     if (mesesTodos.length === 0) return;
@@ -174,51 +174,26 @@ export default function PaginaPld() {
   }, [mesesTodos]);
 
   const pontos: Ponto[] = useMemo(
-    () => mesesTodos.filter((m) => m >= de && m <= ate).map((m) => ({ mes: m, i5: i5[sub]?.[m], pld: pld[sub]?.[m] })),
-    [mesesTodos, de, ate, i5, sub, pld],
+    () =>
+      mesesTodos.filter((m) => m >= de && m <= ate).map((m) => {
+        const valorPld = pld[sub]?.[m];
+        return { mes: m, pld: valorPld, i5: valorPld != null && spread != null ? valorPld + spread : undefined };
+      }),
+    [mesesTodos, de, ate, sub, pld, spread],
   );
 
   const comI5 = pontos.filter((p) => p.i5 != null);
-  const base = comI5.length > 0 ? comI5 : pontos;
   const media = (xs: (number | undefined)[]) => {
     const v = xs.filter((n): n is number => n != null);
     return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
   };
   const mediaI5 = media(comI5.map((p) => p.i5));
-  const mediaPld = media(base.map((p) => p.pld));
-  const spread = mediaI5 != null && mediaPld != null ? mediaI5 - mediaPld : null;
+  const mediaPld = media(pontos.map((p) => p.pld));
   const pldVals = pontos.map((p) => p.pld).filter((v): v is number => v != null);
 
-  async function importar(f: File | undefined) {
-    if (!f) return;
-    setAviso("");
-    try {
-      const { serie, meses } = await lerPlanilhaI5(f, sub);
-      const novo = { ...i5 };
-      for (const [s, m] of Object.entries(serie)) novo[s] = { ...(novo[s] ?? {}), ...m };
-      setI5(novo);
-      try { localStorage.setItem(CHAVE_STORAGE, JSON.stringify(novo)); } catch { /* ignora */ }
-      setAviso(`Planilha importada: ${meses} mês(es) de Energia I5.`);
-    } catch (e) {
-      setAviso((e as Error).message);
-    } finally {
-      if (arquivo.current) arquivo.current.value = "";
-    }
-  }
-
-  function restaurar() {
-    setI5({});
-    try { localStorage.removeItem(CHAVE_STORAGE); } catch { /* ignora */ }
-    setAviso("Histórico de Energia I5 removido.");
-  }
-
-  function baixarModelo() {
-    const blob = new Blob([modeloCsvI5()], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "modelo_energia_i5.csv";
-    a.click();
-    URL.revokeObjectURL(a.href);
+  function mudarSpread(valor: string) {
+    setSpreadTexto(valor);
+    try { localStorage.setItem(CHAVE_SPREAD, valor); } catch { /* ignora */ }
   }
 
   const nomeSub = SUBS.find((s) => s.chave === sub)?.nome ?? sub;
@@ -265,13 +240,17 @@ export default function PaginaPld() {
             </div>
           </div>
           <div className="grupo">
-            <label>Atualizar histórico I5</label>
-            <div className="linha" style={{ flexWrap: "nowrap" }}>
-              <button onClick={() => arquivo.current?.click()}>Importar planilha</button>
-              <button className="sec" onClick={restaurar}>Restaurar</button>
-              <button className="sec" onClick={baixarModelo} title="Baixar modelo de planilha (CSV)">Modelo</button>
-              <input ref={arquivo} type="file" hidden accept=".xlsx,.csv,.txt" onChange={(e) => importar(e.target.files?.[0])} />
-            </div>
+            <label htmlFor="spread-i5">Spread I5 sobre o PLD (R$/MWh)</label>
+            <input
+              id="spread-i5"
+              className="campo-spread"
+              type="number"
+              step="0.5"
+              inputMode="decimal"
+              value={spreadTexto}
+              onChange={(e) => mudarSpread(e.target.value)}
+              placeholder="Ex.: 35"
+            />
           </div>
         </div>
 
@@ -296,12 +275,12 @@ export default function PaginaPld() {
           ) : (
             <Grafico pontos={pontos} titulo={`Preço de Energia I5 × PLD — Submercado ${nomeSub} (${rotuloMes(pontos[0].mes)} a ${rotuloMes(pontos[pontos.length - 1].mes)})`} />
           )}
-          {!carregando && comI5.length === 0 && (
-            <p className="nota">Ainda não há histórico de Energia I5 para {nomeSub}. Use <b>Importar planilha</b> (colunas: Mês, Submercado, Energia I5) — o botão <b>Modelo</b> baixa um exemplo.</p>
+          {!carregando && spread == null && (
+            <p className="nota">Informe o <b>spread I5 sobre o PLD</b> (R$/MWh) para gerar a curva de Energia I5.</p>
           )}
         </div>
         <p className="nota" style={{ marginTop: 10 }}>
-          Fonte do PLD: {fonte || "—"}{atualizadoEm ? `, atualizado em ${new Date(atualizadoEm).toLocaleString("pt-BR")}` : ""}. O histórico de Energia I5 fica salvo apenas neste navegador.
+          Fonte do PLD: {fonte || "—"}{atualizadoEm ? `, atualizado em ${new Date(atualizadoEm).toLocaleString("pt-BR")}` : ""}. Energia I5 = PLD médio mensal + spread informado.
         </p>
       </main>
       <div className="ticker" aria-hidden>

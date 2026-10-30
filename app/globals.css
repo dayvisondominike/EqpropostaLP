@@ -162,3 +162,4 @@ tr.lider .rank { background: var(--amarelo); }
 .legenda i { display: inline-block; width: 28px; height: 0; vertical-align: middle; margin-right: 8px; }
 .legenda .l-i5 { border-top: 3px solid var(--verde); }
 .legenda .l-pld { border-top: 3px dashed var(--amarelo); }
+.campo-spread { width: 190px; font-weight: 700; color: var(--verde); }
