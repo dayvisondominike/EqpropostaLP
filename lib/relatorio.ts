@@ -482,7 +482,7 @@ function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lid
   const wc = (larg - 2 * MARGEM - 3 * gap) / 4;
   let x = MARGEM;
   const cards: [string, string, boolean][] = [
-    [`MÉDIA I5 · ${periodo.length} MESES`, moeda(mediaI5), true],
+    ["MÉDIA i5", moeda(mediaI5), true],
     ["MÉDIA PLD", moeda(mediaPld), false],
     ["SPREAD I5 - PLD", moeda(mercado.spread), false],
     ["PLD MÍN – MÁX", `${inteiro(Math.min(...vals))} – ${inteiro(Math.max(...vals))}`, false],
