@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { lerSpreadSalvo } from "@/lib/ccee";
 import { gerarRelatorioPdf, type DadosMercado } from "@/lib/relatorio";
-import { buscarPld, consolidar, enviarPdf, extrairCliente, extrairFornecedor } from "@/lib/api";
+import { abrirEqualizacao, buscarPld, consolidar, enviarPdf, extrairCliente, extrairFornecedor, listarEqualizacoes, salvarEqualizacao } from "@/lib/api";
+import type { ResumoEqualizacao } from "@/lib/equalizacoes";
 import {
   SUBMERCADOS,
   type Cliente,
@@ -49,6 +50,74 @@ export default function Home() {
   const [propostas, setPropostas] = useState<Proposta[]>([]);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [params, setParams] = useState<Params | null>(null);
+
+  // Início: escolher entre abrir uma equalização do banco ou fazer uma nova.
+  const [tela, setTela] = useState<"inicio" | "equalizacao">("inicio");
+  const [existentes, setExistentes] = useState<ResumoEqualizacao[] | null>(null);
+  const [erroLista, setErroLista] = useState("");
+  const [abrindo, setAbrindo] = useState("");
+  const [idSalvo, setIdSalvo] = useState<string | null>(null);
+  const [avisoBanco, setAvisoBanco] = useState("");
+
+  useEffect(() => {
+    if (tela !== "inicio") return;
+    setExistentes(null);
+    setErroLista("");
+    listarEqualizacoes().then(setExistentes).catch((e) => {
+      setErroLista((e as Error).message);
+      setExistentes([]);
+    });
+  }, [tela]);
+
+  function novaEqualizacao() {
+    setEmail(null);
+    setFornecedores([]);
+    setCliente(null);
+    setPropostas([]);
+    setResultado(null);
+    setParams(null);
+    setIdSalvo(null);
+    setAvisoBanco("");
+    setErro("");
+    setProgresso(0);
+    setMensagem("");
+    setTela("equalizacao");
+  }
+
+  async function abrirExistente(id: string) {
+    setAbrindo(id);
+    setErroLista("");
+    try {
+      const eq = await abrirEqualizacao(id);
+      setEmail(null);
+      setFornecedores([]);
+      setCliente(eq.cliente);
+      setPropostas(eq.propostas);
+      setParams(eq.params);
+      setResultado(eq.resultado);
+      setIdSalvo(eq.id);
+      setAvisoBanco(`Equalização aberta do banco (salva em ${new Date(eq.atualizadoEm).toLocaleString("pt-BR")}).`);
+      setErro("");
+      setProgresso(0);
+      setMensagem("");
+      setTela("equalizacao");
+    } catch (e) {
+      setErroLista((e as Error).message);
+    } finally {
+      setAbrindo("");
+    }
+  }
+
+  /** Grava (ou atualiza) a equalização no banco; falha no banco não perde o resultado da tela. */
+  async function guardar(res: Resultado, props: Proposta[], id: string | null) {
+    try {
+      const r = await salvarEqualizacao({ id: id ?? undefined, cliente: res.cliente, params: res.params, propostas: props, resultado: res });
+      setIdSalvo(r.id);
+      setAvisoBanco(`Salva no banco de equalizações em ${new Date().toLocaleString("pt-BR")}.`);
+    } catch (e) {
+      setAvisoBanco(`Não foi possível salvar no banco: ${(e as Error).message}`);
+    }
+  }
 
   const atualizar = (id: string, patch: Partial<Fornecedor>) =>
     setFornecedores((fs) => fs.map((f) => (f.id === id ? { ...f, ...patch } : f)));
@@ -113,6 +182,8 @@ export default function Home() {
       setResultado(res);
       setParams(res.params);
       setProgresso(100);
+      setMensagem("Salvando no banco…");
+      await guardar(res, validas, idSalvo);
       setMensagem("Equalização concluída.");
     } catch (e) {
       setErro((e as Error).message);
@@ -130,6 +201,7 @@ export default function Home() {
       const res = await consolidar(propostas, cliente, params);
       setResultado(res);
       setParams(res.params);
+      await guardar(res, propostas, idSalvo);
     } catch (e) {
       setErro((e as Error).message);
     } finally {
@@ -183,11 +255,57 @@ export default function Home() {
           <p>Compare propostas de fornecedores por Preço Médio, VPL e aderência ao produto do cliente.</p>
           {cliente?.["Razão Social"] && <span className="cliente">Cliente: {cliente["Razão Social"]}</span>}
           <Link className="link-pld" href="/pld">PLD × Energia I5 →</Link>
+          {tela === "equalizacao" && (
+            <button className="voltar-inicio" onClick={() => setTela("inicio")} disabled={ocupado}>← Início</button>
+          )}
         </div>
       </div>
       <div className="faixa" />
     </header>
+    {tela === "inicio" ? (
     <main>
+      <div className="secao">O que você deseja fazer?</div>
+      <div className="grade">
+        <div className="cartao opcao">
+          <h3>Nova equalização</h3>
+          <p className="nota">Envie o e-mail de cotação do cliente e as propostas dos fornecedores. O resultado é salvo automaticamente no banco.</p>
+          <button className="destaque" onClick={novaEqualizacao}>+ Realizar nova equalização</button>
+        </div>
+      </div>
+
+      <div className="secao">Equalizações existentes</div>
+      {erroLista && <div className="erro-msg">{erroLista}</div>}
+      {existentes === null ? (
+        <p className="nota">Carregando equalizações…</p>
+      ) : existentes.length === 0 ? (
+        <p className="nota">Nenhuma equalização salva ainda.</p>
+      ) : (
+        <div className="tabela-wrap">
+          <table>
+            <thead>
+              <tr><th>Cliente</th><th>CNPJ</th><th>Submercado</th><th>Período</th><th>1º colocado</th><th>Propostas</th><th>Atualizada em</th><th></th></tr>
+            </thead>
+            <tbody>
+              {existentes.map((e) => (
+                <tr key={e.id}>
+                  <td><strong>{e.razaoSocial}</strong></td>
+                  <td>{e.cnpj}</td>
+                  <td>{e.submercado}</td>
+                  <td>{e.periodo}</td>
+                  <td>{e.lider}</td>
+                  <td>{e.propostas}</td>
+                  <td>{new Date(e.atualizadoEm).toLocaleString("pt-BR")}</td>
+                  <td><button className="sec" onClick={() => abrirExistente(e.id)} disabled={abrindo !== ""}>{abrindo === e.id ? "Abrindo…" : "Abrir"}</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </main>
+    ) : (
+    <main>
+      {avisoBanco && <p className="nota" style={{ marginTop: 14 }}>{avisoBanco}</p>}
       <div className="secao"><span className="num">1</span>E-mail de cotação do cliente</div>
       <div className="cartao">
         <label htmlFor="email">PDF do e-mail (características do produto)</label>
@@ -375,6 +493,7 @@ export default function Home() {
         </>
       )}
     </main>
+    )}
     <div className="ticker" aria-hidden>
       {Array.from({ length: 4 }, (_, i) => (
         <span key={i} style={{ margin: 0 }}>O CLIENTE<span>•</span>RESULTADO<span>•</span>ENERGIA<span>•</span>SOLIDEZ<span>•</span>FOCO NO CLIENTE<span>•</span></span>
