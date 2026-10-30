@@ -244,6 +244,49 @@ function colunasPorAno(doc: jsPDF, x: number, y: number, w: number, h: number, d
   });
 }
 
+type Contato = { nome: string; celular: string; telefone: string; site: string; empresa: string; email: string };
+
+const CONTATOS: Contato[] = [
+  { nome: "Dayvison Dominike", celular: "81 98842.3816", telefone: "54 3451.1413", site: "Ludfor.com.br", empresa: "Ludfor Energia", email: "dayvison.dominike@ludfor.com.br" },
+  { nome: "Jefferson Carneiro", celular: "81 99127.1115", telefone: "54 3451.1413", site: "Ludfor.com.br", empresa: "Ludfor Energia", email: "jefferson.carneiro@ludfor.com.br" },
+];
+
+/** Cartão de contato: faixa em degradê com o nome e as linhas de dados. Retorna o Y logo abaixo. */
+function cartaoContato(doc: jsPDF, larg: number, y: number, p: Contato): number {
+  const w = larg - 2 * MARGEM;
+  const h = 76;
+  doc.setFillColor(...VERDE_CLARO);
+  doc.roundedRect(MARGEM, y, w, h, 3, 3, "F");
+  faixaGradiente(doc, MARGEM, y, w, 16);
+  doc.setFillColor(...AMARELO);
+  doc.rect(MARGEM, y + 16, w, 1.2, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(15);
+  doc.text(p.nome, MARGEM + 8, y + 10.5);
+
+  const linhas: [string, string][] = [
+    ["Celular / WhatsApp", p.celular],
+    ["Telefone", p.telefone],
+    ["Site", p.site],
+    ["Empresa", p.empresa],
+    ["E-mail", p.email],
+  ];
+  linhas.forEach(([rotulo, valor], i) => {
+    const yy = y + 27 + i * 9.5;
+    doc.setFillColor(...AMARELO);
+    doc.circle(MARGEM + 10, yy - 1.2, 2.4, "F");
+    doc.setTextColor(...CINZA);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text(rotulo.toUpperCase(), MARGEM + 17, yy);
+    doc.setTextColor(...VERDE);
+    doc.setFontSize(11);
+    doc.text(valor, MARGEM + 62, yy);
+  });
+  return y + h;
+}
+
 /** Gera o relatório de equalização em PDF (retrato) no navegador e dispara o download. */
 export async function gerarRelatorioPdf(resultado: Resultado) {
   const { jsPDF: JsPdf } = await import("jspdf");
@@ -391,6 +434,18 @@ export async function gerarRelatorioPdf(resultado: Resultado) {
     columnStyles: { 0: { fontStyle: "bold", textColor: CINZA, cellWidth: 50, fillColor: VERDE_CLARO } },
     margin: margem,
   });
+
+  // Página de contatos
+  doc.addPage();
+  cabecalhoPagina(c, "Fale com a gente", "Nossos Contatos");
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(...CINZA);
+  doc.text("Estamos à disposição para esclarecer dúvidas sobre esta análise e apoiar a sua decisão.", MARGEM, 48);
+  let yc = 60;
+  for (const p of CONTATOS) {
+    yc = cartaoContato(doc, larg, yc, p) + 14;
+  }
 
   // Rodapé em todas as páginas (exceto a capa) e numeração
   const total = doc.getNumberOfPages();
