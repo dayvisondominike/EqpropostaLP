@@ -22,7 +22,7 @@ body {
   margin: 0;
   background: var(--fundo);
   color: var(--texto);
-  font-family: Calibri, "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  font-family: var(--fonte), Roboto, "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
   font-size: 16px;
   line-height: 1.45;
 }
@@ -30,34 +30,29 @@ main { max-width: 1120px; margin: 0 auto; padding: 0 16px 56px; }
 
 /* Cabeçalho */
 .topo {
-  background: linear-gradient(100deg, var(--verde) 0%, var(--verde-medio) 70%, var(--verde-vivo) 100%);
+  background: linear-gradient(100deg, #00574e 0%, #076764 45%, #4c8ca6 78%, #2a98d2 100%);
   color: #fff;
   position: relative;
   overflow: hidden;
 }
-.topo::after {
-  content: "";
-  position: absolute; right: 0; top: 0; bottom: 0; width: 120px;
-  background: var(--amarelo);
-  clip-path: polygon(38% 0, 100% 0, 100% 100%, 0 100%);
-}
-.topo-interno { max-width: 1120px; margin: 0 auto; padding: 26px 130px 24px 16px; position: relative; z-index: 1; }
-.topo .marca { font-size: 12px; letter-spacing: .22em; text-transform: uppercase; color: var(--amarelo); font-weight: 700; }
-.topo h1 { margin: 4px 0 0; font-size: 34px; font-weight: 300; line-height: 1.1; }
-.topo h1 b { font-weight: 800; letter-spacing: .01em; }
+.topo-interno { max-width: 1120px; margin: 0 auto; padding: 26px 16px 24px; position: relative; z-index: 1; }
+.topo .marca { font-size: 13px; letter-spacing: .2em; color: #fff; font-weight: 300; }
+.topo h1 { margin: 2px 0 0; font-size: 40px; font-weight: 500; line-height: 1.1; letter-spacing: .02em; text-transform: uppercase; }
+.topo h1 i { font-family: "Segoe Script", "Brush Script MT", cursive; font-style: normal; font-weight: 400; text-transform: none; font-size: 34px; margin-left: 10px; }
 .topo p { margin: 8px 0 0; font-size: 15px; opacity: .92; max-width: 640px; }
 .topo .cliente { display: inline-block; margin-top: 12px; padding: 4px 12px; border-radius: 999px; background: rgba(255,255,255,.16); font-size: 14px; font-weight: 600; }
-.faixa { height: 4px; background: var(--amarelo); }
+.faixa { height: 0; }
+.ticker { margin-top: 36px; padding: 10px 0; overflow: hidden; white-space: nowrap; color: var(--verde); font-size: 11px; letter-spacing: .12em; font-weight: 500; border-top: 1px solid var(--borda); }
+.ticker span { color: var(--amarelo); margin: 0 10px; }
 
 /* Seções e cartões */
 .secao {
   margin: 30px 0 10px; display: flex; align-items: center; gap: 10px;
   font-size: 13px; letter-spacing: .1em; font-weight: 800; color: var(--verde); text-transform: uppercase;
 }
-.secao .num {
-  display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 6px;
-  background: var(--amarelo); color: var(--verde); font-size: 13px; letter-spacing: 0;
-}
+.secao { font-size: 16px; letter-spacing: .02em; text-transform: none; font-weight: 700; }
+.secao::before { content: "//"; color: var(--amarelo); font-weight: 900; font-size: 22px; letter-spacing: -.1em; }
+.secao .num { display: none; }
 .cartao { background: var(--cartao); border: 1px solid var(--borda); border-radius: 12px; padding: 16px 18px; box-shadow: var(--sombra); }
 .cartao h3 { margin: 0 0 6px; font-size: 16px; color: var(--verde); }
 .grade { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
@@ -121,7 +116,7 @@ label { font-size: 13px; font-weight: 600; color: var(--texto-suave); display: b
 /* Tabela */
 .tabela-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--borda); background: #fff; box-shadow: var(--sombra); }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
-th { background: var(--verde); color: #fff; text-align: left; padding: 10px 12px; white-space: nowrap; font-weight: 700; border-bottom: 3px solid var(--amarelo); }
+th { background: var(--verde); color: #fff; text-align: left; padding: 10px 12px; white-space: nowrap; font-weight: 500; border-bottom: 3px solid #ffd966; }
 td { padding: 10px 12px; border-bottom: 1px solid var(--borda); vertical-align: top; }
 tbody tr:last-child td { border-bottom: 0; }
 tbody tr:hover td { background: #f7fafa; }
@@ -137,7 +132,7 @@ tr.lider .rank { background: var(--amarelo); }
 .erro-msg { color: var(--erro); background: #fdecee; border: 1px solid #f3b9bf; border-radius: 8px; padding: 10px 14px; margin: 12px 0; }
 .nota { color: var(--texto-suave); font-size: 13px; }
 
-.rodape { margin-top: 40px; padding: 18px 16px; background: var(--verde); color: #dcebe8; font-size: 13px; text-align: center; border-top: 4px solid var(--amarelo); }
+.rodape { padding: 18px 16px; background: linear-gradient(100deg, #00574e, #076764 60%, #2a98d2); color: #e4f1ef; font-size: 13px; text-align: center; }
 .rodape b { color: var(--amarelo); letter-spacing: .12em; }
 
 @media (max-width: 600px) {

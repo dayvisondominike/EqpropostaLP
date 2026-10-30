@@ -158,8 +158,8 @@ export default function Home() {
     <header>
       <div className="topo">
         <div className="topo-interno">
-          <div className="marca">Mercado Livre de Energia</div>
-          <h1>Equalização de <b>PROPOSTAS</b></h1>
+          <div className="marca">Análise de Viabilidade</div>
+          <h1>Equalização <i>de propostas</i></h1>
           <p>Compare propostas de fornecedores por Preço Médio, VPL e aderência ao produto do cliente.</p>
           {cliente?.["Razão Social"] && <span className="cliente">Cliente: {cliente["Razão Social"]}</span>}
         </div>
@@ -351,7 +351,12 @@ export default function Home() {
         </>
       )}
     </main>
-    <footer className="rodape"><b>ENERGIA · SOLIDEZ · RESULTADO</b> — Equalização de propostas do Mercado Livre de Energia</footer>
+    <div className="ticker" aria-hidden>
+      {Array.from({ length: 4 }, (_, i) => (
+        <span key={i} style={{ margin: 0 }}>O CLIENTE<span>•</span>RESULTADO<span>•</span>ENERGIA<span>•</span>SOLIDEZ<span>•</span>FOCO NO CLIENTE<span>•</span></span>
+      ))}
+    </div>
+    <footer className="rodape">Equalização de propostas do Mercado Livre de Energia</footer>
     </>
   );
 }
