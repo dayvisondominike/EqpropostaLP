@@ -328,6 +328,7 @@ const CONTATOS: Contato[] = [
     nome: "Jefferson Carneiro",
     telefones: [
       { rotulo: "Celular / WhatsApp", numero: "81 99127.1115" },
+      { rotulo: "Celular (Manaus)", numero: "92 98290.8060" },
       { rotulo: "Telefone", numero: "54 3451.1413" },
     ],
     site: "Ludfor.com.br",
