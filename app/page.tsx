@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { gerarRelatorioPdf } from "@/lib/relatorio";
 import { consolidar, enviarPdf, extrairCliente, extrairFornecedor } from "@/lib/api";
 import {
   SUBMERCADOS,
@@ -346,7 +347,10 @@ export default function Home() {
           </div>
 
           <div className="secao">Exportar</div>
-          <button className="destaque" onClick={() => baixarXlsx(resultado.xlsx)}>⬇ Baixar planilha de equalização (.xlsx)</button>
+          <div className="linha">
+            <button className="destaque" onClick={() => baixarXlsx(resultado.xlsx)}>⬇ Baixar planilha (.xlsx)</button>
+            <button className="destaque" onClick={() => gerarRelatorioPdf(resultado)}>📄 Gerar relatório (PDF)</button>
+          </div>
           <p className="nota">O relatório em Word (.docx) será adicionado na Fase 2.</p>
         </>
       )}
