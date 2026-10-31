@@ -180,46 +180,6 @@ function cartaoKpi(doc: jsPDF, x: number, y: number, w: number, rotulo: string, 
   doc.text(valor, x + 4, y + 15, { maxWidth: w - 8 });
 }
 
-/** Gráfico de barras horizontais. Retorna a posição Y logo abaixo do gráfico. */
-function barrasHorizontais(
-  doc: jsPDF,
-  y: number,
-  itens: { nome: string; valor: number; lider: boolean }[],
-  formatar: (v: number) => string,
-  larg: number,
-): number {
-  const xNome = MARGEM;
-  const wNome = 36;
-  const xBarra = xNome + wNome + 2;
-  const wMax = larg - MARGEM - xBarra - 2;
-  // A escala começa um pouco abaixo do menor valor para evidenciar as diferenças.
-  const max = Math.max(1e-9, ...itens.map((i) => i.valor));
-  const piso = Math.min(...itens.map((i) => i.valor)) * 0.9;
-  const altBarra = 5.4;
-  const passo = 7;
-  itens.forEach((it, i) => {
-    const yy = y + i * passo;
-    doc.setFont("helvetica", it.lider ? "bold" : "normal");
-    doc.setFontSize(7.5);
-    doc.setTextColor(...(it.lider ? VERDE : CINZA));
-    doc.text(it.nome, xNome + wNome, yy + 3.9, { align: "right", maxWidth: wNome });
-    doc.setFillColor(...VERDE_CLARO);
-    doc.roundedRect(xBarra, yy, wMax, altBarra, 1, 1, "F");
-    const w = Math.max(14, ((it.valor - piso) / Math.max(1e-9, max - piso)) * wMax);
-    doc.setFillColor(...(it.lider ? VERDE : VERDE_SUAVE));
-    doc.roundedRect(xBarra, yy, w, altBarra, 1, 1, "F");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(6.8);
-    doc.setTextColor(255, 255, 255);
-    doc.text(formatar(it.valor), xBarra + w - 1.5, yy + 3.8, { align: "right" });
-  });
-  doc.setFont("helvetica", "italic");
-  doc.setFontSize(6.5);
-  doc.setTextColor(...CINZA);
-  doc.text("Escala das barras iniciada abaixo do menor valor, para evidenciar as diferenças.", xBarra, y + itens.length * passo + 2);
-  return y + itens.length * passo + 3;
-}
-
 /** Colunas por ano, para a curva de preço do primeiro colocado. */
 function colunasPorAno(doc: jsPDF, x: number, y: number, w: number, h: number, dados: { ano: string; preco: number }[]) {
   const max = Math.max(1, ...dados.map((d) => d.preco));
@@ -243,6 +203,80 @@ function colunasPorAno(doc: jsPDF, x: number, y: number, w: number, h: number, d
     doc.setTextColor(...CINZA);
     doc.text(d.ano, cx + larguraCol / 2, base + 4.5, { align: "center" });
   });
+}
+
+/** Corta o texto com "..." para caber em `largMax` (usa a fonte e o tamanho já definidos no doc). */
+function cortarTexto(doc: jsPDF, texto: string, largMax: number): string {
+  if (doc.getTextWidth(texto) <= largMax) return texto;
+  let t = texto;
+  while (t.length > 1 && doc.getTextWidth(t + "...") > largMax) t = t.slice(0, -1);
+  return t.trimEnd() + "...";
+}
+
+/** Cartão branco com borda e faixa superior colorida (estilo dos cartões da tela). */
+function cartaoBase(doc: jsPDF, x: number, y: number, w: number, h: number, faixa: RGB, fundo: RGB = [255, 255, 255]) {
+  doc.setFillColor(...fundo);
+  doc.setDrawColor(...BORDA);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(x, y, w, h, 3, 3, "FD");
+  doc.setFillColor(...faixa);
+  doc.roundedRect(x, y, w, 4, 3, 3, "F");
+  doc.setFillColor(...fundo);
+  doc.rect(x, y + 1.3, w, 4, "F");
+  doc.setDrawColor(...BORDA);
+  doc.line(x, y + 3, x, y + 5);
+  doc.line(x + w, y + 3, x + w, y + 5);
+}
+
+/** Indicador do resumo: valor grande em cima, rótulo pequeno embaixo. */
+function cartaoResumo(doc: jsPDF, x: number, y: number, w: number, valor: string, rotulo: string, destaque = false) {
+  cartaoBase(doc, x, y, w, 23, destaque ? AMARELO : VERDE, destaque ? AMARELO_CLARO : [255, 255, 255]);
+  doc.setFont("helvetica", "bold");
+  let tam = 13;
+  doc.setFontSize(tam);
+  while (tam > 7 && doc.getTextWidth(valor) > w - 8) {
+    tam -= 0.5;
+    doc.setFontSize(tam);
+  }
+  doc.setTextColor(...VERDE);
+  doc.text(valor, x + 4, y + 13);
+  doc.setFontSize(6.2);
+  doc.setTextColor(...CINZA);
+  doc.text(rotulo, x + 4, y + 18.5, { charSpace: 0.3, maxWidth: w - 8 });
+}
+
+/** Barras horizontais dentro de um cartão (nome à esquerda, valor dentro da barra). Retorna a altura ocupada. */
+function barrasCartao(
+  doc: jsPDF,
+  x: number,
+  y: number,
+  w: number,
+  itens: { nome: string; valor: number; lider: boolean }[],
+  formatar: (v: number) => string,
+  nomeW: number,
+  passo: number,
+) {
+  const xBarra = x + nomeW + 2;
+  const wMax = x + w - xBarra;
+  const max = Math.max(1e-9, ...itens.map((i) => i.valor));
+  const altBarra = Math.min(5, passo - 1.2);
+  itens.forEach((it, i) => {
+    const yy = y + i * passo;
+    doc.setFont("helvetica", it.lider ? "bold" : "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(...CINZA);
+    doc.text(cortarTexto(doc, it.nome, nomeW), x + nomeW, yy + altBarra / 2 + 1.1, { align: "right" });
+    doc.setFillColor(...VERDE_CLARO);
+    doc.roundedRect(xBarra, yy, wMax, altBarra, 1.2, 1.2, "F");
+    const largura = Math.max(wMax * 0.14, (it.valor / max) * wMax);
+    doc.setFillColor(...(it.lider ? VERDE : VERDE_SUAVE));
+    doc.roundedRect(xBarra, yy, largura, altBarra, 1.2, 1.2, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.6);
+    doc.setTextColor(255, 255, 255);
+    doc.text(formatar(it.valor), xBarra + largura - 1.8, yy + altBarra / 2 + 1, { align: "right" });
+  });
+  return itens.length * passo;
 }
 
 type Item = { rotulo: string; valor: string; destaque?: boolean; colunas?: number };
@@ -655,38 +689,21 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
   // Página 1: capa
   capa(c, lider);
 
-  // Página 2: resumo e gráficos
+  // Página 2: resumo (mesmo formato da tela) e gráficos
   doc.addPage();
   cabecalhoPagina(c, "Resultado", "Ranking da Equalização");
-  let y = 44;
+  const util = larg - 2 * MARGEM;
+  let y = 46;
   if (lider) {
-    const w = (larg - 2 * MARGEM - 8) / 3;
-    cartaoKpi(doc, MARGEM, y, w, "1º COLOCADO", lider.Fornecedor, true);
-    cartaoKpi(doc, MARGEM + w + 4, y, w, "VPL DO 1º COLOCADO", moeda(lider["VPL (R$)"]));
-    cartaoKpi(doc, MARGEM + 2 * (w + 4), y, w, "PREÇO MÉDIO DO 1º (R$/MWh)", moeda(lider["Preço Médio (R$/MWh)"]));
-    y += 32;
+    tituloSecao(doc, "Resumo", y);
+    y += 4;
+    const w4 = (util - 12) / 4;
+    cartaoResumo(doc, MARGEM, y, w4, lider.Fornecedor, "1º COLOCADO NO RANK", true);
+    cartaoResumo(doc, MARGEM + (w4 + 4), y, w4, moeda(lider["VPL (R$)"]), "VPL DO 1º COLOCADO");
+    cartaoResumo(doc, MARGEM + 2 * (w4 + 4), y, w4, moeda(lider["Preço Médio (R$/MWh)"]), "PREÇO MÉDIO DO 1º COLOCADO");
+    cartaoResumo(doc, MARGEM + 3 * (w4 + 4), y, w4, String(ranking.length), "PROPOSTAS RECEBIDAS");
+    y += 31;
   }
-
-  const comPreco = ranking.filter((r) => r["Preço Médio (R$/MWh)"] != null);
-  tituloSecao(doc, "Preço médio por proposta (R$/MWh)", y);
-  y = barrasHorizontais(
-    doc,
-    y + 5,
-    comPreco.map((r) => ({ nome: r.Fornecedor, valor: r["Preço Médio (R$/MWh)"] as number, lider: r.Rank === lider?.Rank })),
-    num2,
-    larg,
-  );
-
-  y += 8;
-  const comVpl = ranking.filter((r) => r["VPL (R$)"] != null);
-  tituloSecao(doc, "VPL por proposta (R$) — menor é melhor", y);
-  y = barrasHorizontais(
-    doc,
-    y + 5,
-    comVpl.map((r) => ({ nome: r.Fornecedor, valor: r["VPL (R$)"] as number, lider: r.Rank === lider?.Rank })),
-    (v) => v.toLocaleString("pt-BR", { maximumFractionDigits: 0 }),
-    larg,
-  );
 
   const propostaLider = resultado.propostas.find((p) => p.Fornecedor === lider?.Fornecedor);
   const precos = propostaLider
@@ -695,15 +712,58 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
         .filter((x) => x.m && typeof x.v === "number")
         .map((x) => ({ ano: x.m![1], preco: x.v as number }))
     : [];
-  if (lider && precos.length > 0) {
-    y += 8;
-    if (y + 50 > alt - 16) {
+  const comPreco = ranking.filter((r) => r["Preço Médio (R$/MWh)"] != null);
+  const itensPreco = comPreco.map((r) => ({ nome: r.Fornecedor, valor: r["Preço Médio (R$/MWh)"] as number, lider: r.Rank === lider?.Rank }));
+
+  // Linha de gráficos: curva de preço do 1º colocado (esquerda) e preço médio por proposta (direita).
+  const duplo = lider !== undefined && precos.length > 0;
+  const wCart = duplo ? (util - 4) / 2 : util;
+  const xDir = duplo ? MARGEM + wCart + 4 : MARGEM;
+  const topoBarras = 15;
+  const passoPreco = Math.max(3.8, Math.min(6.4, (alt - 16 - y - topoBarras - 4) / Math.max(1, itensPreco.length)));
+  const hCart = topoBarras + itensPreco.length * passoPreco + 4;
+
+  if (duplo) {
+    cartaoBase(doc, MARGEM, y, wCart, hCart, VERDE);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...VERDE);
+    doc.text(cortarTexto(doc, `Curva de preço — ${lider!.Fornecedor} (R$/MWh)`, wCart - 8), MARGEM + 4, y + 10);
+    colunasPorAno(doc, MARGEM + 6, y + 16, wCart - 12, Math.min(40, hCart - 28), precos);
+  }
+  cartaoBase(doc, xDir, y, wCart, hCart, VERDE);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...VERDE);
+  doc.text("Preço médio por proposta (R$/MWh)", xDir + 4, y + 10);
+  barrasCartao(doc, xDir + 4, y + topoBarras - 1, wCart - 8, itensPreco, num2, duplo ? 33 : 45, passoPreco);
+  y += hCart + 6;
+
+  // VPL por proposta (menor é melhor), em cartão de largura total; vai para a página seguinte se não couber.
+  const comVpl = ranking.filter((r) => r["VPL (R$)"] != null);
+  if (comVpl.length > 0) {
+    const passoVpl = 5.6;
+    const hVpl = topoBarras + comVpl.length * passoVpl + 4;
+    if (y + hVpl > alt - 16) {
       doc.addPage();
-      cabecalhoPagina(c, "Resultado", "Curva de Preço");
-      y = 50;
+      cabecalhoPagina(c, "Resultado", "VPL por Proposta");
+      y = 46;
     }
-    tituloSecao(doc, `Curva de preço — ${lider.Fornecedor} (R$/MWh)`, y);
-    colunasPorAno(doc, MARGEM + 4, y + 6, larg - 2 * MARGEM - 8, 32, precos);
+    cartaoBase(doc, MARGEM, y, util, hVpl, VERDE);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...VERDE);
+    doc.text("VPL por proposta (R$) — menor é melhor", MARGEM + 4, y + 10);
+    barrasCartao(
+      doc,
+      MARGEM + 4,
+      y + topoBarras - 1,
+      util - 8,
+      comVpl.map((r) => ({ nome: r.Fornecedor, valor: r["VPL (R$)"] as number, lider: r.Rank === lider?.Rank })),
+      (v) => v.toLocaleString("pt-BR", { maximumFractionDigits: 0 }),
+      45,
+      passoVpl,
+    );
   }
 
   // Página 3: tabela do ranking e observações
