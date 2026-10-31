@@ -145,7 +145,10 @@ tr.lider .rank { background: var(--amarelo); }
 /* Consulta PLD x Energia I5 */
 .topo .voltar { display: inline-block; margin-top: 12px; color: #fff; font-size: 14px; font-weight: 500; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,.5); }
 .topo h1 i { font-size: 30px; }
-.link-pld { display: inline-block; margin-top: 12px; margin-left: 10px; padding: 4px 14px; border-radius: 999px; background: var(--amarelo); color: var(--verde); font-size: 14px; font-weight: 700; text-decoration: none; }
+.menu-abas { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+.menu-abas .aba { padding: 6px 16px; border-radius: 999px; color: #fff; font-size: 14px; font-weight: 500; text-decoration: none; border: 1px solid rgba(255,255,255,.5); }
+.menu-abas .aba:hover { background: rgba(255,255,255,.18); }
+.menu-abas .aba.ativa { background: var(--amarelo); border-color: var(--amarelo); color: var(--verde); font-weight: 700; }
 .pld-barra { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: flex-end; background: var(--cartao); border: 1px solid var(--borda); border-radius: 12px; padding: 14px 18px; box-shadow: var(--sombra); }
 .pld-barra .grupo { min-width: 0; }
 .pld-barra select { width: auto; }

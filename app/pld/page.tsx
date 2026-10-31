@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import MenuAbas from "../MenuAbas";
 import { useEffect, useMemo, useState } from "react";
 import { buscarPld, salvarPld } from "@/lib/api";
 import { baixarPldCcee, CHAVE_SPREAD, SPREAD_PADRAO, type DadosPld } from "@/lib/ccee";
@@ -202,10 +202,10 @@ export default function PaginaPld() {
       <header>
         <div className="topo">
           <div className="topo-interno">
+            <MenuAbas ativa="/pld" />
             <div className="marca">Análise de Viabilidade</div>
             <h1>PLD × Energia I5 <i>consulta</i></h1>
             <p>Compare o preço de Energia I5 com o PLD médio mensal da CCEE, por submercado.</p>
-            <Link className="voltar" href="/">← Equalização de propostas</Link>
           </div>
         </div>
       </header>

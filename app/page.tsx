@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import MenuAbas from "./MenuAbas";
 import { useEffect, useMemo, useState } from "react";
 import { lerSpreadSalvo } from "@/lib/ccee";
 import { gerarRelatorioPdf, type DadosMercado } from "@/lib/relatorio";
@@ -344,11 +344,11 @@ export default function Home() {
     <header>
       <div className="topo">
         <div className="topo-interno">
+          <MenuAbas ativa="/" />
           <div className="marca">Análise de Viabilidade</div>
           <h1>Equalização <i>de propostas</i></h1>
           <p>Compare propostas de fornecedores por Preço Médio, VPL e aderência ao produto do cliente.</p>
           {cliente?.["Razão Social"] && <span className="cliente">Cliente: {cliente["Razão Social"]}</span>}
-          <Link className="link-pld" href="/pld">PLD × Energia I5 →</Link>
           {tela === "equalizacao" && (
             <button className="voltar-inicio" onClick={() => setTela("inicio")} disabled={ocupado}>← Início</button>
           )}
