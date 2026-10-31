@@ -104,14 +104,14 @@ function Grafico({ pontos, titulo }: { pontos: Ponto[]; titulo: string }) {
             <rect width={178} height={60} rx={6} fill="#fff" stroke="#d9e3e1" />
             <text x={10} y={16} fontSize={11} fill="#5f6f6c" fontWeight={700}>{rotuloMes(pa.mes)}</text>
             <circle cx={14} cy={31} r={4} fill="#01625c" />
-            <text x={24} y={35} fontSize={11} fill="#1f2d2b">Energia I5: {pa.i5 != null ? moeda(pa.i5) : "—"}</text>
+            <text x={24} y={35} fontSize={11} fill="#1f2d2b">Energia i5 Spot: {pa.i5 != null ? moeda(pa.i5) : "—"}</text>
             <circle cx={14} cy={48} r={4} fill="#f8b026" />
             <text x={24} y={52} fontSize={11} fill="#1f2d2b">PLD: {pa.pld != null ? moeda(pa.pld) : "—"}</text>
           </g>
         )}
       </svg>
       <div className="legenda">
-        <span><i className="l-i5" /> Energia I5 (preço médio comprado no curto prazo)</span>
+        <span><i className="l-i5" /> Energia i5 Spot (preço médio comprado no curto prazo)</span>
         <span><i className="l-pld" /> PLD médio mensal</span>
       </div>
     </div>
@@ -203,8 +203,8 @@ export default function PaginaPld() {
         <div className="topo">
           <div className="topo-interno">
             <div className="marca">Análise de Viabilidade</div>
-            <h1>PLD × Energia I5 <i>consulta</i></h1>
-            <p>Compare o preço de Energia I5 com o PLD médio mensal da CCEE, por submercado.</p>
+            <h1>PLD × Energia i5 Spot <i>consulta</i></h1>
+            <p>Compare o preço de Energia i5 Spot com o PLD médio mensal da CCEE, por submercado.</p>
           </div>
           <MenuAbas ativa="/pld" />
         </div>
@@ -239,7 +239,7 @@ export default function PaginaPld() {
             </div>
           </div>
           <div className="grupo">
-            <label htmlFor="spread-i5">Spread I5 − PLD (R$/MWh)</label>
+            <label htmlFor="spread-i5">Spread i5 Spot − PLD (R$/MWh)</label>
             <input
               id="spread-i5"
               className="campo-spread"
@@ -255,11 +255,11 @@ export default function PaginaPld() {
 
         <div className="metricas pld-kpis">
           <div className="metrica destaque-escuro">
-            <div className="rotulo">MÉDIA i5</div>
+            <div className="rotulo">MÉDIA i5 Spot</div>
             <div className="valor">{mediaI5 != null ? moeda(mediaI5) : "—"}</div>
           </div>
           <div className="metrica"><div className="rotulo">MÉDIA PLD</div><div className="valor">{mediaPld != null ? moeda(mediaPld) : "—"}</div></div>
-          <div className="metrica"><div className="rotulo">SPREAD I5 − PLD</div><div className="valor">{spread != null ? moeda(spread) : "—"}</div></div>
+          <div className="metrica"><div className="rotulo">SPREAD i5 Spot − PLD</div><div className="valor">{spread != null ? moeda(spread) : "—"}</div></div>
           <div className="metrica"><div className="rotulo">PLD MÍN – MÁX</div><div className="valor">{pldVals.length ? `${inteiro(Math.min(...pldVals))} – ${inteiro(Math.max(...pldVals))}` : "—"}</div></div>
         </div>
 
@@ -272,14 +272,14 @@ export default function PaginaPld() {
           ) : pontos.length === 0 ? (
             <p className="nota">Sem dados para o período selecionado.</p>
           ) : (
-            <Grafico pontos={pontos} titulo={`Preço de Energia I5 × PLD — Submercado ${nomeSub} (${rotuloMes(pontos[0].mes)} a ${rotuloMes(pontos[pontos.length - 1].mes)})`} />
+            <Grafico pontos={pontos} titulo={`Preço de Energia I5 Spot × PLD — Submercado ${nomeSub} (${rotuloMes(pontos[0].mes)} a ${rotuloMes(pontos[pontos.length - 1].mes)})`} />
           )}
           {!carregando && spread == null && (
-            <p className="nota">Informe o <b>spread I5 sobre o PLD</b> (R$/MWh) para gerar a curva de Energia I5.</p>
+            <p className="nota">Informe o <b>spread i5 Spot sobre o PLD</b> (R$/MWh) para gerar a curva de Energia i5 Spot.</p>
           )}
         </div>
         <p className="nota" style={{ marginTop: 10 }}>
-          Fonte do PLD: {fonte || "—"}{atualizadoEm ? `, atualizado em ${new Date(atualizadoEm).toLocaleString("pt-BR")}` : ""}. Energia I5 = PLD médio mensal + spread informado.
+          Fonte do PLD: {fonte || "—"}{atualizadoEm ? `, atualizado em ${new Date(atualizadoEm).toLocaleString("pt-BR")}` : ""}. Energia i5 Spot = PLD médio mensal + spread informado.
         </p>
       </main>
       <div className="ticker" aria-hidden>
@@ -287,7 +287,7 @@ export default function PaginaPld() {
           <span key={i} style={{ margin: 0 }}>O CLIENTE<span>•</span>RESULTADO<span>•</span>ENERGIA<span>•</span>SOLIDEZ<span>•</span>FOCO NO CLIENTE<span>•</span></span>
         ))}
       </div>
-      <footer className="rodape">Consulta PLD × Energia I5 — dados abertos da CCEE</footer>
+      <footer className="rodape">Consulta PLD × Energia i5 Spot — dados abertos da CCEE</footer>
     </>
   );
 }

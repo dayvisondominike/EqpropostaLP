@@ -311,7 +311,7 @@ export default function Home() {
       try {
         const pld = await buscarPld();
         mercado = { pld: pld.dados, spread: lerSpreadSalvo(), fonte: pld.fonte, atualizadoEm: pld.atualizadoEm };
-      } catch { /* PLD indisponível: relatório sem a página PLD × Energia I5 */ }
+      } catch { /* PLD indisponível: relatório sem a página PLD × Energia i5 Spot */ }
       await gerarRelatorioPdf(r, mercado);
     } finally {
       setGerandoPdf(false);

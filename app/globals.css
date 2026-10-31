@@ -142,7 +142,7 @@ tr.lider .rank { background: var(--amarelo); }
   .hbar { grid-template-columns: 80px 1fr; }
 }
 
-/* Consulta PLD x Energia I5 */
+/* Consulta PLD x Energia i5 Spot */
 .topo .voltar { display: inline-block; margin-top: 12px; color: #fff; font-size: 14px; font-weight: 500; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,.5); }
 .topo h1 i { font-size: 30px; }
 /* Faixa de menu: vidro fosco em toda a largura, abas como "cápsulas" com indicador amarelo */

@@ -15,7 +15,7 @@ const ABAS: { href: "/" | "/pld"; rotulo: string; icone: ReactNode }[] = [
   },
   {
     href: "/pld",
-    rotulo: "PLD × Energia I5",
+    rotulo: "PLD × Energia i5 Spot",
     icone: icone(<><path d="M3 17l6-6 4 4 8-8" /><path d="M15 7h6v6" /></>),
   },
 ];

@@ -414,7 +414,7 @@ function cartaoContato(doc: jsPDF, larg: number, y: number, p: Contato): number 
   return y + h;
 }
 
-/** Dados de mercado para a página PLD × Energia I5: PLD mensal por submercado e spread (R$/MWh). */
+/** Dados de mercado para a página PLD × Energia i5 Spot: PLD mensal por submercado e spread (R$/MWh). */
 export type DadosMercado = {
   pld: DadosPld;
   spread: number;
@@ -482,7 +482,7 @@ function cartaoPld(doc: jsPDF, x: number, y: number, w: number, rotulo: string, 
   doc.text(valor, x + 4, y + 17);
 }
 
-/** Página "PLD × Energia I5": cards, gráfico e comparação com a proposta vencedora. */
+/** Página "PLD × Energia i5 Spot": cards, gráfico e comparação com a proposta vencedora. */
 function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lider: LinhaRanking | undefined) {
   const { doc, larg, alt } = c;
   const sub = chaveSubmercado(resultado.params.submercado);
@@ -495,7 +495,7 @@ function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lid
   if (periodo.length < 2) return;
 
   doc.addPage();
-  cabecalhoPagina(c, "Cenário de mercado", "PLD × Energia I5");
+  cabecalhoPagina(c, "Cenário de mercado", "PLD × Energia i5 Spot");
 
   const pontos = periodo.map((m) => ({ mes: m, pld: serie[m], i5: serie[m] + mercado.spread }));
   const media = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -507,7 +507,7 @@ function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lid
   doc.setFontSize(9.5);
   doc.setTextColor(...CINZA);
   doc.text(
-    `Submercado ${nomeSub} · ${rotuloMes(periodo[0])} a ${rotuloMes(periodo[periodo.length - 1])} · PLD médio mensal da CCEE e Energia I5 (PLD + spread).`,
+    `Submercado ${nomeSub} · ${rotuloMes(periodo[0])} a ${rotuloMes(periodo[periodo.length - 1])} · PLD médio mensal da CCEE e Energia i5 Spot (PLD + spread).`,
     MARGEM,
     44,
     { maxWidth: larg - 2 * MARGEM },
@@ -518,9 +518,9 @@ function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lid
   const wc = (larg - 2 * MARGEM - 3 * gap) / 4;
   let x = MARGEM;
   const cards: [string, string, boolean][] = [
-    ["MÉDIA i5", moeda(mediaI5), true],
+    ["MÉDIA i5 Spot", moeda(mediaI5), true],
     ["MÉDIA PLD", moeda(mediaPld), false],
-    ["SPREAD I5 - PLD", moeda(mercado.spread), false],
+    ["SPREAD i5 Spot - PLD", moeda(mercado.spread), false],
     ["PLD MÍN – MÁX", `${inteiro(Math.min(...vals))} – ${inteiro(Math.max(...vals))}`, false],
   ];
   for (const [r, v, esc] of cards) {
@@ -543,7 +543,7 @@ function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lid
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(...VERDE);
-  doc.text(`Preço de Energia I5 × PLD — Submercado ${nomeSub}`, larg / 2, 92, { align: "center" });
+  doc.text(`Preço de Energia I5 Spot × PLD — Submercado ${nomeSub}`, larg / 2, 92, { align: "center" });
 
   doc.setLineWidth(0.15);
   for (let t = 0; t <= topo + 1e-9; t += passo) {
@@ -618,7 +618,7 @@ function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lid
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
   doc.setTextColor(...CINZA);
-  doc.text("Energia I5 (PLD + spread)", MARGEM + 18, ly + 1);
+  doc.text("Energia i5 Spot (PLD + spread)", MARGEM + 18, ly + 1);
   doc.setLineWidth(0.7);
   doc.setDrawColor(...AMARELO);
   doc.setLineDashPattern([2, 1.4], 0);
@@ -647,7 +647,7 @@ function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lid
     doc.setFontSize(9.5);
     doc.setTextColor(...VERDE);
     doc.text(
-      `${lider.Fornecedor}: ${moeda(refPreco)}/MWh, ${moeda(Math.abs(dif))} (${num2(pct)}%) ${dif >= 0 ? "abaixo" : "acima"} da média I5 do período`,
+      `${lider.Fornecedor}: ${moeda(refPreco)}/MWh, ${moeda(Math.abs(dif))} (${num2(pct)}%) ${dif >= 0 ? "abaixo" : "acima"} da média i5 Spot do período`,
       MARGEM + 6,
       yt + 6.3,
       { maxWidth: larg - 2 * MARGEM - 10 },
@@ -655,7 +655,7 @@ function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lid
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
     doc.setTextColor(...CINZA);
-    doc.text(`Média I5 do período: ${moeda(mediaI5)}/MWh (PLD médio ${moeda(mediaPld)} + spread ${moeda(mercado.spread)}).`, MARGEM + 6, yt + 11.5);
+    doc.text(`Média i5 Spot do período: ${moeda(mediaI5)}/MWh (PLD médio ${moeda(mediaPld)} + spread ${moeda(mercado.spread)}).`, MARGEM + 6, yt + 11.5);
     yt += 20;
   }
 
@@ -665,7 +665,7 @@ function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lid
   const atualiz = mercado.atualizadoEm ? `, atualizado em ${new Date(mercado.atualizadoEm).toLocaleDateString("pt-BR")}` : "";
   doc.text(
     doc.splitTextToSize(
-      `Fonte do PLD: ${mercado.fonte}${atualiz}. A Energia I5 é calculada como o PLD médio mensal somado ao spread informado (R$/MWh). Valores históricos de referência; não constituem projeção.`,
+      `Fonte do PLD: ${mercado.fonte}${atualiz}. A Energia i5 Spot é calculada como o PLD médio mensal somado ao spread informado (R$/MWh). Valores históricos de referência; não constituem projeção.`,
       larg - 2 * MARGEM,
     ),
     MARGEM,
@@ -814,7 +814,7 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
     margin: margem,
   });
 
-  // Página 4: cenário de mercado (PLD × Energia I5)
+  // Página 4: cenário de mercado (PLD × Energia i5 Spot)
   if (mercado) paginaPld(c, resultado, mercado, lider);
 
   // Página final: dados do cliente e parâmetros
