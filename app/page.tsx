@@ -333,6 +333,8 @@ export default function Home() {
   const maxPreco = Math.max(1, ...precosLider.map((p) => p.preco));
   const comparativo = (resultado?.ranking ?? []).filter((r) => r["Preço Médio (R$/MWh)"] != null);
   const maxMedio = Math.max(1, ...comparativo.map((r) => r["Preço Médio (R$/MWh)"] ?? 0));
+  // Mesma escala do relatório: começa em 90% do menor valor para evidenciar as diferenças.
+  const pisoMedio = Math.min(maxMedio, ...comparativo.map((r) => r["Preço Médio (R$/MWh)"] ?? maxMedio)) * 0.9;
 
   const setP = <K extends keyof Params>(k: K, v: Params[K]) => setParams((p) => (p ? { ...p, [k]: v } : p));
   const num = (v: string) => (v === "" ? 0 : Number(v));
@@ -535,7 +537,7 @@ export default function Home() {
                   <div className="hbar" key={r.Fornecedor}>
                     <div className="nome" title={r.Fornecedor}>{r.Fornecedor}</div>
                     <div className="trilho">
-                      <div className={`preenche ${r.Rank === lider.Rank ? "lider" : ""}`} style={{ width: `${Math.max(12, ((r["Preço Médio (R$/MWh)"] ?? 0) / maxMedio) * 100)}%` }}>
+                      <div className={`preenche ${r.Rank === lider.Rank ? "lider" : ""}`} style={{ width: `${Math.max(14, (((r["Preço Médio (R$/MWh)"] ?? 0) - pisoMedio) / Math.max(1e-9, maxMedio - pisoMedio)) * 100)}%` }}>
                         {(r["Preço Médio (R$/MWh)"] ?? 0).toFixed(2)}
                       </div>
                     </div>

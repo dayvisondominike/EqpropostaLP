@@ -278,10 +278,6 @@ function barrasCartao(
     doc.setTextColor(255, 255, 255);
     doc.text(formatar(it.valor), xBarra + largura - 1.8, yy + altBarra / 2 + 1, { align: "right" });
   });
-  doc.setFont("helvetica", "italic");
-  doc.setFontSize(6);
-  doc.setTextColor(...CINZA);
-  doc.text("Escala iniciada abaixo do menor valor, para evidenciar as diferenças.", x, y + itens.length * passo + 2.2, { maxWidth: w });
   return itens.length * passo;
 }
 
@@ -726,8 +722,8 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
   const wCart = duplo ? (util - 4) / 2 : util;
   const xDir = duplo ? MARGEM + wCart + 4 : MARGEM;
   const topoBarras = 15;
-  const passoPreco = Math.max(3.8, Math.min(6.4, (alt - 16 - y - topoBarras - 8) / Math.max(1, itensPreco.length)));
-  const hCart = topoBarras + itensPreco.length * passoPreco + 8;
+  const passoPreco = Math.max(3.8, Math.min(6.4, (alt - 16 - y - topoBarras - 4) / Math.max(1, itensPreco.length)));
+  const hCart = topoBarras + itensPreco.length * passoPreco + 4;
 
   if (duplo) {
     cartaoBase(doc, MARGEM, y, wCart, hCart, VERDE);
@@ -749,8 +745,8 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
   const comVpl = ranking.filter((r) => r["VPL (R$)"] != null);
   if (comVpl.length > 0) {
     // Reduz o espaçamento para o VPL caber na mesma página quando possível.
-    const passoVpl = Math.max(3.8, Math.min(5.6, (alt - 16 - y - topoBarras - 8) / comVpl.length));
-    const hVpl = topoBarras + comVpl.length * passoVpl + 8;
+    const passoVpl = Math.max(3.8, Math.min(5.6, (alt - 16 - y - topoBarras - 4) / comVpl.length));
+    const hVpl = topoBarras + comVpl.length * passoVpl + 4;
     if (y + hVpl > alt - 16) {
       doc.addPage();
       cabecalhoPagina(c, "Resultado", "VPL por Proposta");
