@@ -173,7 +173,7 @@ tr.lider .rank { background: var(--amarelo); }
 .voltar-inicio:hover:not(:disabled) { background: rgba(255,255,255,.28); }
 .opcao h3 { font-size: 18px; }
 .opcao button { margin-top: 10px; }
-.acoes-linha { white-space: nowrap; }
+.acoes-linha, .sem-quebra { white-space: nowrap; }
 .acoes-linha button + button { margin-left: 8px; }
 button.sec.perigo { color: var(--erro); border-color: var(--erro); }
 button.sec.perigo:hover:not(:disabled) { background: #fdecee; }

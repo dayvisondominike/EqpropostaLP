@@ -383,12 +383,12 @@ export default function Home() {
               {existentes.map((e) => (
                 <tr key={e.id}>
                   <td><strong>{e.razaoSocial}</strong></td>
-                  <td>{e.cnpj}</td>
+                  <td className="sem-quebra">{e.cnpj}</td>
                   <td>{e.submercado}</td>
                   <td>{e.periodo}</td>
                   <td>{e.lider}</td>
                   <td>{e.propostas}</td>
-                  <td>{new Date(e.atualizadoEm).toLocaleString("pt-BR")}</td>
+                  <td className="sem-quebra">{new Date(e.atualizadoEm).toLocaleString("pt-BR")}</td>
                   <td className="acoes-linha">
                     <button className="sec" onClick={() => abrirExistente(e.id)} disabled={abrindo !== ""}>{abrindo === e.id ? "Aguarde…" : "Abrir"}</button>
                     <button className="sec perigo" onClick={() => excluirExistente(e)} disabled={abrindo !== ""}>Excluir</button>
