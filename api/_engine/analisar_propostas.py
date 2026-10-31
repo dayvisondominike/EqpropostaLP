@@ -267,6 +267,9 @@ def avaliar_aderencia(row: dict, cliente: dict):
 
     flex = _txt(row["Flexibilidade"])
     flex_inferior, flex_superior = _parse_intervalo_percentual(flex)
+    if flex_inferior is None and flex_superior is None and re.search(r"\bflat\b|sem\s+flexibilidade", flex, re.IGNORECASE):
+        # Flexibilidade "Flat" equivale a +-0% (nenhuma tolerância de consumo).
+        flex_inferior = flex_superior = 0.0
     flex_restritiva = []
     flex_ampla = []
     if flex_superior is not None:
