@@ -604,3 +604,77 @@ def extrair_cliente_llm(caminho_pdf):
     dados = _para_dict_cliente(dados_llm)
     _cache_gravar(hash_, dados)
     return dados
+
+
+# ----------------------------------------------------------------------------
+# Identificação do fornecedor de um PDF solto (arrastar e soltar)
+# ----------------------------------------------------------------------------
+TIPOS_DOCUMENTO = ("proposta", "email_cliente", "anexo_contrato", "outro")
+
+
+class IdentificacaoDocumento(BaseModel):
+    fornecedor: str = Field(
+        description="Nome comercial CURTO e padronizado da empresa que emitiu a proposta/contrato "
+        "(ex.: 'Engie', 'Casa dos Ventos', 'Cemig', 'Auren', 'Axia', 'Light', 'Serena', 'Echo Energia'). "
+        "Vazio se o documento não for de um fornecedor (ex.: e-mail do cliente)."
+    )
+    tipo: str = Field(
+        description="'proposta' (proposta comercial de energia de um fornecedor), 'email_cliente' "
+        "(e-mail/solicitação de cotação do cliente com as características do produto), "
+        "'anexo_contrato' (contrato-modelo, minuta ou anexo de um fornecedor) ou 'outro'."
+    )
+    cliente: str = Field(description="Nome do cliente (consumidor) citado no documento, se houver; senão vazio.")
+
+
+_SYSTEM_IDENTIFICAR = (
+    "Você classifica documentos de cotação de energia elétrica do mercado livre (ACL) no Brasil. "
+    "Para cada PDF diga quem é o fornecedor (comercializadora/geradora que emite a proposta ou o "
+    "contrato), o tipo do documento e o cliente citado. Use sempre o nome comercial curto e "
+    "consistente da empresa (o mesmo nome para todos os documentos dela, sem 'S.A.', 'Ltda' ou "
+    "'Comercializadora'). Se o documento for o e-mail de solicitação do cliente (pedido de cotação "
+    "com submercado, volume, período, flexibilidade), o tipo é 'email_cliente' e o fornecedor fica vazio."
+)
+
+
+def _fornecedor_pelo_arquivo(nome_arquivo: str) -> str:
+    """Alternativa sem LLM: primeiro trecho do nome ('Engie - Mirella - ...pdf' -> 'Engie')."""
+    base = re.split(r"\s+[-–_]\s+|_", Path(nome_arquivo).stem, maxsplit=1)[0].strip()
+    return base[:40]
+
+
+def identificar_documento_llm(caminho_pdf, nome_arquivo: str = "") -> dict:
+    """Identifica fornecedor e tipo de um PDF olhando só as primeiras páginas.
+    Nunca levanta: sem SDK/chave ou em caso de erro, devolve o palpite pelo nome do arquivo."""
+    caminho = Path(caminho_pdf)
+    nome_arquivo = nome_arquivo or caminho.name
+    palpite = {"fornecedor": _fornecedor_pelo_arquivo(nome_arquivo), "tipo": "proposta", "cliente": "", "origem": "Nome do arquivo"}
+
+    client = _client()
+    if client is None:
+        return palpite
+    try:
+        if _PYPDF_DISPONIVEL:
+            total = _contar_paginas(caminho)
+            dados = _pdf_recortado(caminho, list(range(min(3, total)))) if total < 10**6 else caminho.read_bytes()
+        else:
+            dados = caminho.read_bytes()
+        resp = client.messages.parse(
+            model=MODEL_ID,
+            max_tokens=256,
+            system=_SYSTEM_IDENTIFICAR,
+            messages=[{"role": "user", "content": [_bloco_documento(dados), {
+                "type": "text",
+                "text": f'Arquivo: "{nome_arquivo}". Identifique o fornecedor, o tipo do documento e o cliente.',
+            }]}],
+            output_format=IdentificacaoDocumento,
+        )
+        r = resp.parsed_output
+        if r is None:
+            return palpite
+        tipo = r.tipo if r.tipo in TIPOS_DOCUMENTO else "outro"
+        fornecedor = r.fornecedor.strip() or ("" if tipo == "email_cliente" else palpite["fornecedor"])
+        _registrar(fornecedor or "E-mail do cliente", f"API ({MODEL_ID})", resp, detalhe=f"Identificação: {nome_arquivo}")
+        return {"fornecedor": fornecedor, "tipo": tipo, "cliente": r.cliente.strip(), "origem": "LLM"}
+    except Exception as e:  # noqa: BLE001
+        print(f"[AVISO] Identificação via LLM falhou para '{nome_arquivo}' ({e.__class__.__name__}: {e}).")
+        return palpite

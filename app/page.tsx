@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { lerSpreadSalvo } from "@/lib/ccee";
 import { gerarRelatorioPdf, type DadosMercado } from "@/lib/relatorio";
-import { abrirEqualizacao, buscarPld, consolidar, enviarPdf, excluirEqualizacao, extrairCliente, extrairFornecedor, listarEqualizacoes, salvarEqualizacao } from "@/lib/api";
+import { abrirEqualizacao, buscarPld, identificarPdf, consolidar, enviarPdf, excluirEqualizacao, extrairCliente, extrairFornecedor, listarEqualizacoes, salvarEqualizacao } from "@/lib/api";
 import type { ResumoEqualizacao } from "@/lib/equalizacoes";
 import {
   SUBMERCADOS,
@@ -39,6 +39,9 @@ function tagAderencia(status: string) {
 
 export default function Home() {
   const [email, setEmail] = useState<File | null>(null);
+  const [urlEmail, setUrlEmail] = useState<string | null>(null);
+  const [arrastando, setArrastando] = useState(false);
+  const [lendo, setLendo] = useState<{ nome: string; estado: "enviando" | "identificando" | "ok" | "erro"; detalhe: string }[]>([]);
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
   const [nomeNovo, setNomeNovo] = useState("");
   const [arquivosNovos, setArquivosNovos] = useState<File[]>([]);
@@ -71,6 +74,8 @@ export default function Home() {
 
   function novaEqualizacao() {
     setEmail(null);
+    setUrlEmail(null);
+    setLendo([]);
     setFornecedores([]);
     setCliente(null);
     setPropostas([]);
@@ -136,6 +141,59 @@ export default function Home() {
   const atualizar = (id: string, patch: Partial<Fornecedor>) =>
     setFornecedores((fs) => fs.map((f) => (f.id === id ? { ...f, ...patch } : f)));
 
+  /** Recebe vários PDFs de uma vez: envia ao Blob, a LLM identifica o fornecedor de cada um e o app os agrupa. */
+  async function receberArquivos(entrada: File[]) {
+    const pdfs = entrada.filter((f) => f.name.toLowerCase().endsWith(".pdf") || f.type === "application/pdf");
+    if (pdfs.length === 0) {
+      setErro("Solte apenas arquivos PDF.");
+      return;
+    }
+    setErro("");
+    setLendo(pdfs.map((f) => ({ nome: f.name, estado: "enviando", detalhe: "" })));
+    const marcar = (i: number, p: Partial<(typeof lendo)[number]>) =>
+      setLendo((l) => l.map((x, j) => (j === i ? { ...x, ...p } : x)));
+
+    type Lido = { arquivo: File; url: string; fornecedor: string; tipo: string };
+    const lidos: (Lido | undefined)[] = new Array(pdfs.length);
+    let proximo = 0;
+    async function trabalhador() {
+      while (proximo < pdfs.length) {
+        const i = proximo++;
+        try {
+          const url = await enviarPdf(pdfs[i], "Arrastados");
+          marcar(i, { estado: "identificando" });
+          const r = await identificarPdf(url, pdfs[i].name);
+          lidos[i] = { arquivo: pdfs[i], url, fornecedor: r.fornecedor, tipo: r.tipo };
+          marcar(i, { estado: "ok", detalhe: r.tipo === "email_cliente" ? "E-mail do cliente" : r.fornecedor || "Fornecedor não identificado" });
+        } catch (e) {
+          marcar(i, { estado: "erro", detalhe: (e as Error).message });
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(CONCORRENCIA, pdfs.length) }, trabalhador));
+
+    const chave = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const emails = lidos.filter((l): l is Lido => !!l && l.tipo === "email_cliente");
+    if (emails.length > 0) {
+      setEmail(emails[0].arquivo);
+      setUrlEmail(emails[0].url);
+    }
+    const docs = lidos.filter((l): l is Lido => !!l && l.tipo !== "email_cliente" && l.tipo !== "outro" && chave(l.fornecedor) !== "");
+    setFornecedores((atuais) => {
+      const lista = [...atuais];
+      for (const d of docs) {
+        const existente = lista.find((f) => f.estado === "pendente" && chave(f.nome) === chave(d.fornecedor));
+        if (existente) {
+          existente.arquivos = [...existente.arquivos, d.arquivo];
+          existente.urls = [...(existente.urls ?? []), d.url];
+        } else {
+          lista.push({ id: crypto.randomUUID(), nome: d.fornecedor, arquivos: [d.arquivo], urls: [d.url], estado: "pendente" });
+        }
+      }
+      return lista.map((f) => ({ ...f }));
+    });
+  }
+
   function adicionarFornecedor() {
     const nome = nomeNovo.trim();
     if (!nome || arquivosNovos.length === 0) return;
@@ -157,8 +215,8 @@ export default function Home() {
     setProgresso(0);
     try {
       setMensagem("Lendo o e-mail de cotação do cliente…");
-      const urlEmail = await enviarPdf(email, "Caracteristicas_Produto");
-      const resp = await extrairCliente(urlEmail);
+      const urlDoEmail = urlEmail ?? (await enviarPdf(email, "Caracteristicas_Produto"));
+      const resp = await extrairCliente(urlDoEmail);
       setCliente(resp.dados);
 
       const total = fornecedores.length;
@@ -172,7 +230,7 @@ export default function Home() {
           const f = fornecedores[i];
           atualizar(f.id, { estado: "processando", detalhe: "enviando PDFs…" });
           try {
-            const urls = await Promise.all(f.arquivos.map((a) => enviarPdf(a, f.nome)));
+            const urls = f.urls ?? (await Promise.all(f.arquivos.map((a) => enviarPdf(a, f.nome))));
             atualizar(f.id, { detalhe: "extraindo dados…" });
             const r = await extrairFornecedor(f.nome, urls);
             coletadas[i] = r.dados;
@@ -323,10 +381,37 @@ export default function Home() {
     ) : (
     <main>
       {avisoBanco && <p className="nota" style={{ marginTop: 14 }}>{avisoBanco}</p>}
+      <div className="secao">Arraste todos os PDFs</div>
+      <div
+        className={`soltar ${arrastando ? "ativo" : ""}`}
+        onDragOver={(e) => { e.preventDefault(); if (!ocupado) setArrastando(true); }}
+        onDragLeave={() => setArrastando(false)}
+        onDrop={(e) => { e.preventDefault(); setArrastando(false); if (!ocupado) receberArquivos(Array.from(e.dataTransfer.files)); }}
+      >
+        <strong>Solte aqui o e-mail do cliente e as propostas de todos os fornecedores</strong>
+        <span className="nota">A LLM identifica o fornecedor de cada PDF e os agrupa automaticamente. Você pode corrigir os nomes abaixo.</span>
+        <label className="botao sec" htmlFor="soltar-arquivos">Ou selecione os arquivos</label>
+        <input id="soltar-arquivos" type="file" accept="application/pdf" multiple hidden disabled={ocupado}
+          onChange={(e) => { receberArquivos(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
+      </div>
+      {lendo.length > 0 && (
+        <div className="grade" style={{ marginTop: 12 }}>
+          {lendo.map((l, i) => (
+            <div key={`${l.nome}-${i}`} className={`chip ${l.estado === "ok" ? "concluido" : l.estado === "erro" ? "erro" : "processando"}`}>
+              <div>
+                <strong>{l.nome}</strong>
+                <small>{l.estado === "enviando" ? "enviando…" : l.estado === "identificando" ? "identificando o fornecedor…" : l.detalhe}</small>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="secao"><span className="num">1</span>E-mail de cotação do cliente</div>
       <div className="cartao">
         <label htmlFor="email">PDF do e-mail (características do produto)</label>
-        <input id="email" type="file" accept="application/pdf" disabled={ocupado} onChange={(e) => setEmail(e.target.files?.[0] ?? null)} />
+        {email && <p className="nota" style={{ margin: "0 0 8px" }}>Selecionado: <strong>{email.name}</strong></p>}
+        <input id="email" type="file" accept="application/pdf" disabled={ocupado} onChange={(e) => { setEmail(e.target.files?.[0] ?? null); setUrlEmail(null); }} />
       </div>
 
       <div className="secao"><span className="num">2</span>Propostas dos fornecedores</div>
@@ -348,9 +433,14 @@ export default function Home() {
           <div className="grade" style={{ marginTop: 14 }}>
             {fornecedores.map((f) => (
               <div key={f.id} className={`chip ${f.estado}`}>
-                <div>
-                  <strong>{f.nome}</strong>
-                  <small>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  {!ocupado && f.estado === "pendente" ? (
+                    <input className="nome-fornecedor" value={f.nome} aria-label={`Nome do fornecedor ${f.nome}`}
+                      onChange={(e) => atualizar(f.id, { nome: e.target.value })} />
+                  ) : (
+                    <strong>{f.nome}</strong>
+                  )}
+                  <small title={f.arquivos.map((a) => a.name).join("\n")}>
                     {f.arquivos.length} arquivo(s){f.detalhe ? ` · ${f.detalhe}` : ""}
                   </small>
                 </div>

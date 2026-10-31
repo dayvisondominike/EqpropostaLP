@@ -324,3 +324,12 @@ def consolidar(propostas: list, cliente: dict, params: dict | None = None) -> di
         "params": p,
         "xlsx": {"nome": nome_arquivo, "base64": xlsx_b64},
     }
+
+
+def identificar_documento(url: str, nome_arquivo: str = "") -> dict:
+    """Descobre de qual fornecedor é um PDF (e se é o e-mail do cliente), olhando só as primeiras páginas."""
+    with tempfile.TemporaryDirectory() as t:
+        tmp = Path(t)
+        _preparar_llm(tmp)
+        caminho = _baixar(url, tmp / "documento.pdf")
+        return extrair_llm.identificar_documento_llm(caminho, nome_arquivo)

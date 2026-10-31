@@ -177,3 +177,10 @@ tr.lider .rank { background: var(--amarelo); }
 .acoes-linha button + button { margin-left: 8px; }
 button.sec.perigo { color: var(--erro); border-color: var(--erro); }
 button.sec.perigo:hover:not(:disabled) { background: #fdecee; }
+
+/* Arrastar e soltar PDFs */
+.soltar { display: grid; gap: 8px; justify-items: center; text-align: center; padding: 28px 18px; border: 2px dashed var(--verde-suave); border-radius: 12px; background: #fff; color: var(--verde); transition: background .15s, border-color .15s; }
+.soltar.ativo { background: var(--verde-claro); border-color: var(--verde); }
+.soltar .botao { display: inline-block; margin: 0; padding: 8px 16px; background: #fff; color: var(--verde); border: 1px solid var(--verde); }
+.soltar .botao:hover { background: var(--verde-claro); }
+.chip .nome-fornecedor { padding: 3px 8px; font-weight: 700; font-size: 15px; width: 100%; }

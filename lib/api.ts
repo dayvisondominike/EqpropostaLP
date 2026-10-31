@@ -82,3 +82,10 @@ export async function excluirEqualizacao(id: string): Promise<void> {
   const resp = await fetch(`/api/equalizacoes/${id}`, { method: "DELETE" });
   if (!resp.ok) throw new Error(((await resp.json().catch(() => ({}))) as { erro?: string }).erro ?? `Erro HTTP ${resp.status} ao excluir.`);
 }
+
+export type TipoDocumento = "proposta" | "email_cliente" | "anexo_contrato" | "outro";
+
+export type RespostaIdentificacao = { fornecedor: string; tipo: TipoDocumento; cliente: string; origem: string };
+
+/** Pede à LLM para dizer de qual fornecedor é o PDF (ou se é o e-mail do cliente). */
+export const identificarPdf = (url: string, nome: string) => postar<RespostaIdentificacao>("/api/identificar", { url, nome });

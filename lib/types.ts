@@ -50,6 +50,8 @@ export type Fornecedor = {
   id: string;
   nome: string;
   arquivos: File[];
+  /** URLs no Blob quando os PDFs já foram enviados (arrastar e soltar). */
+  urls?: string[];
   estado: EstadoFornecedor;
   detalhe?: string;
 };
