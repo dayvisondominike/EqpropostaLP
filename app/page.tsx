@@ -153,7 +153,7 @@ export default function Home() {
     const marcar = (i: number, p: Partial<(typeof lendo)[number]>) =>
       setLendo((l) => l.map((x, j) => (j === i ? { ...x, ...p } : x)));
 
-    type Lido = { arquivo: File; url: string; fornecedor: string; tipo: string };
+    type Lido = { arquivo: File; url: string; fornecedor: string; tipo: string; propostas?: Proposta[] };
     const lidos: (Lido | undefined)[] = new Array(pdfs.length);
     let proximo = 0;
     async function trabalhador() {
@@ -165,10 +165,10 @@ export default function Home() {
           const r = await identificarPdf(url, pdfs[i].name);
           // O e-mail do cliente precisa ser PDF; planilha classificada assim é tratada como proposta se tiver fornecedor.
           const tipo = ehPlanilha(pdfs[i].name) && r.tipo === "email_cliente" ? (r.fornecedor ? "proposta" : "outro") : r.tipo;
-          lidos[i] = { arquivo: pdfs[i], url, fornecedor: r.fornecedor, tipo };
+          lidos[i] = { arquivo: pdfs[i], url, fornecedor: r.fornecedor, tipo, propostas: r.propostas };
           marcar(i, {
             estado: tipo === "outro" || (tipo !== "email_cliente" && !r.fornecedor) ? "erro" : "ok",
-            detalhe: tipo === "email_cliente" ? "E-mail do cliente" : tipo === "outro" ? "Ignorado: não é proposta de fornecedor" : r.fornecedor || "Fornecedor não identificado",
+            detalhe: tipo === "tabela_cotacoes" ? `${r.propostas?.length ?? 0} cotações de fornecedores` : tipo === "email_cliente" ? "E-mail do cliente" : tipo === "outro" ? "Ignorado: não é proposta de fornecedor" : r.fornecedor || "Fornecedor não identificado",
           });
         } catch (e) {
           marcar(i, { estado: "erro", detalhe: (e as Error).message });
@@ -183,7 +183,8 @@ export default function Home() {
       setEmail(emails[0].arquivo);
       setUrlEmail(emails[0].url);
     }
-    const docs = lidos.filter((l): l is Lido => !!l && l.tipo !== "email_cliente" && l.tipo !== "outro" && chave(l.fornecedor) !== "");
+    const tabelas = lidos.filter((l): l is Lido => !!l && l.tipo === "tabela_cotacoes" && (l.propostas?.length ?? 0) > 0);
+    const docs = lidos.filter((l): l is Lido => !!l && l.tipo !== "email_cliente" && l.tipo !== "outro" && l.tipo !== "tabela_cotacoes" && chave(l.fornecedor) !== "");
     setFornecedores((atuais) => {
       const lista = [...atuais];
       for (const d of docs) {
@@ -193,6 +194,12 @@ export default function Home() {
           existente.urls = [...(existente.urls ?? []), d.url];
         } else {
           lista.push({ id: crypto.randomUUID(), nome: d.fornecedor, arquivos: [d.arquivo], urls: [d.url], estado: "pendente" });
+        }
+      }
+      // Planilha de cotações: cada linha já é uma proposta pronta (sem extração).
+      for (const t of tabelas) {
+        for (const p of t.propostas ?? []) {
+          lista.push({ id: crypto.randomUUID(), nome: String(p.Fornecedor), arquivos: [t.arquivo], urls: [t.url], proposta: p, estado: "pendente" });
         }
       }
       return lista.map((f) => ({ ...f }));
@@ -235,6 +242,14 @@ export default function Home() {
           const f = fornecedores[i];
           atualizar(f.id, { estado: "processando", detalhe: "enviando PDFs…" });
           try {
+            if (f.proposta) {
+              coletadas[i] = { ...f.proposta, Fornecedor: f.nome.toUpperCase() };
+              atualizar(f.id, { estado: "concluido", detalhe: "cotação da planilha" });
+              feitos++;
+              setProgresso(Math.round((feitos / total) * 90));
+              setMensagem(`Analisando propostas: ${feitos}/${total}`);
+              continue;
+            }
             const urls = f.urls ?? (await Promise.all(f.arquivos.map((a) => enviarPdf(a, f.nome))));
             atualizar(f.id, { detalhe: "extraindo dados…" });
             const r = await extrairFornecedor(f.nome, urls);

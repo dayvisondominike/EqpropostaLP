@@ -30,6 +30,7 @@ import calcular_equalizacao  # noqa: E402
 import criar_planilha_equalizacao  # noqa: E402
 import extrair_dados_pdfs  # noqa: E402
 import extrair_llm  # noqa: E402
+import tabela_cotacoes  # noqa: E402
 
 LIMITE_DOWNLOAD_BYTES = 40 * 1024 * 1024
 
@@ -283,12 +284,29 @@ def montar_ranking(df_propostas: pd.DataFrame, cliente: pd.Series) -> pd.DataFra
                "Aderente ao Produto", "Observações"]]
 
 
+def _ajustar_cotacao_de_mercado(proposta: dict, cliente: dict, params: dict) -> dict:
+    """Cotações semanais (planilha) não trazem submercado e listam todos os anos do mercado:
+    assume o submercado do cliente e considera só os anos do período solicitado."""
+    if not proposta.get("Cotação de mercado"):
+        return proposta
+    proposta = dict(proposta)
+    if not proposta.get("Submercado"):
+        proposta["Submercado"] = cliente.get("Submercado")
+    precos = {int(a): v for a, v in (proposta.get("Preços por ano") or {}).items()}
+    dentro = {a: v for a, v in precos.items() if params["ano_inicio"] <= a <= params["ano_fim"]}
+    if dentro:
+        proposta["Preços por ano"] = {str(a): v for a, v in sorted(dentro.items())}
+        proposta["Período"] = f"01/01/{min(dentro)} a 31/12/{max(dentro)}"
+    return proposta
+
+
 def consolidar(propostas: list, cliente: dict, params: dict | None = None) -> dict:
     if not propostas:
         raise ValueError("Nenhuma proposta recebida.")
     p = {**parametros_do_cliente(cliente), **(params or {})}
     _aplicar_parametros(p)
 
+    propostas = [_ajustar_cotacao_de_mercado(l, cliente, p) for l in propostas]
     df_propostas = _montar_dataframe(propostas)
     df_cliente = pd.DataFrame([cliente])
 
@@ -335,4 +353,9 @@ def identificar_documento(url: str, nome_arquivo: str = "") -> dict:
         if extensao not in (".pdf", ".csv", ".xlsx", ".xlsm"):
             extensao = ".pdf"
         caminho = _baixar(url, tmp / f"documento{extensao}")
+        if extensao != ".pdf":
+            propostas = tabela_cotacoes.ler_tabela_cotacoes(caminho)
+            if propostas:
+                return {"fornecedor": "Cotações semanais", "tipo": "tabela_cotacoes", "cliente": "",
+                        "origem": "Planilha de cotações", "propostas": _json_seguro(propostas)}
         return extrair_llm.identificar_documento_llm(caminho, nome_arquivo)

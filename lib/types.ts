@@ -52,6 +52,8 @@ export type Fornecedor = {
   arquivos: File[];
   /** URLs no Blob quando os PDFs já foram enviados (arrastar e soltar). */
   urls?: string[];
+  /** Proposta já pronta (linha de uma planilha de cotações): dispensa a extração. */
+  proposta?: Proposta;
   estado: EstadoFornecedor;
   detalhe?: string;
 };
