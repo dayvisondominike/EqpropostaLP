@@ -10,7 +10,14 @@ export async function POST(request: Request): Promise<NextResponse> {
       body,
       request,
       onBeforeGenerateToken: async () => ({
-        allowedContentTypes: ["application/pdf"],
+        allowedContentTypes: [
+          "application/pdf",
+          "text/csv",
+          "application/csv",
+          "application/vnd.ms-excel", // .csv que o Windows associa ao Excel
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "application/vnd.ms-excel.sheet.macroEnabled.12",
+        ],
         maximumSizeInBytes: 30 * 1024 * 1024,
         addRandomSuffix: true,
       }),

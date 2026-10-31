@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { lerSpreadSalvo } from "@/lib/ccee";
 import { gerarRelatorioPdf, type DadosMercado } from "@/lib/relatorio";
-import { abrirEqualizacao, buscarPld, identificarPdf, consolidar, enviarPdf, excluirEqualizacao, extrairCliente, extrairFornecedor, listarEqualizacoes, salvarEqualizacao } from "@/lib/api";
+import { abrirEqualizacao, buscarPld, ehArquivoAceito, ehPlanilha, identificarPdf, consolidar, enviarPdf, excluirEqualizacao, extrairCliente, extrairFornecedor, listarEqualizacoes, salvarEqualizacao } from "@/lib/api";
 import type { ResumoEqualizacao } from "@/lib/equalizacoes";
 import {
   SUBMERCADOS,
@@ -143,9 +143,9 @@ export default function Home() {
 
   /** Recebe vários PDFs de uma vez: envia ao Blob, a LLM identifica o fornecedor de cada um e o app os agrupa. */
   async function receberArquivos(entrada: File[]) {
-    const pdfs = entrada.filter((f) => f.name.toLowerCase().endsWith(".pdf") || f.type === "application/pdf");
+    const pdfs = entrada.filter((f) => ehArquivoAceito(f.name));
     if (pdfs.length === 0) {
-      setErro("Solte apenas arquivos PDF.");
+      setErro("Solte apenas arquivos PDF, CSV ou XLSX.");
       return;
     }
     setErro("");
@@ -163,8 +163,13 @@ export default function Home() {
           const url = await enviarPdf(pdfs[i], "Arrastados");
           marcar(i, { estado: "identificando" });
           const r = await identificarPdf(url, pdfs[i].name);
-          lidos[i] = { arquivo: pdfs[i], url, fornecedor: r.fornecedor, tipo: r.tipo };
-          marcar(i, { estado: "ok", detalhe: r.tipo === "email_cliente" ? "E-mail do cliente" : r.fornecedor || "Fornecedor não identificado" });
+          // O e-mail do cliente precisa ser PDF; planilha classificada assim é tratada como proposta se tiver fornecedor.
+          const tipo = ehPlanilha(pdfs[i].name) && r.tipo === "email_cliente" ? (r.fornecedor ? "proposta" : "outro") : r.tipo;
+          lidos[i] = { arquivo: pdfs[i], url, fornecedor: r.fornecedor, tipo };
+          marcar(i, {
+            estado: tipo === "outro" || (tipo !== "email_cliente" && !r.fornecedor) ? "erro" : "ok",
+            detalhe: tipo === "email_cliente" ? "E-mail do cliente" : tipo === "outro" ? "Ignorado: não é proposta de fornecedor" : r.fornecedor || "Fornecedor não identificado",
+          });
         } catch (e) {
           marcar(i, { estado: "erro", detalhe: (e as Error).message });
         }
@@ -388,10 +393,10 @@ export default function Home() {
         onDragLeave={() => setArrastando(false)}
         onDrop={(e) => { e.preventDefault(); setArrastando(false); if (!ocupado) receberArquivos(Array.from(e.dataTransfer.files)); }}
       >
-        <strong>Solte aqui o e-mail do cliente e as propostas de todos os fornecedores</strong>
-        <span className="nota">A LLM identifica o fornecedor de cada PDF e os agrupa automaticamente. Você pode corrigir os nomes abaixo.</span>
+        <strong>Solte aqui o e-mail do cliente e as propostas de todos os fornecedores (PDF, CSV ou XLSX, misturados)</strong>
+        <span className="nota">A LLM identifica o fornecedor de cada arquivo (PDF ou planilha) e os agrupa automaticamente. Você pode corrigir os nomes abaixo.</span>
         <label className="botao sec" htmlFor="soltar-arquivos">Ou selecione os arquivos</label>
-        <input id="soltar-arquivos" type="file" accept="application/pdf" multiple hidden disabled={ocupado}
+        <input id="soltar-arquivos" type="file" accept=".pdf,.csv,.xlsx,.xlsm,application/pdf,text/csv" multiple hidden disabled={ocupado}
           onChange={(e) => { receberArquivos(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
       </div>
       {lendo.length > 0 && (
@@ -422,8 +427,8 @@ export default function Home() {
             <input id="nome" value={nomeNovo} disabled={ocupado} onChange={(e) => setNomeNovo(e.target.value)} placeholder="Ex.: Engie" />
           </div>
           <div style={{ flex: "2 1 260px" }}>
-            <label htmlFor="arq-fornecedor">PDF(s) da proposta</label>
-            <input id="arq-fornecedor" type="file" accept="application/pdf" multiple disabled={ocupado} onChange={(e) => setArquivosNovos(Array.from(e.target.files ?? []))} />
+            <label htmlFor="arq-fornecedor">PDF(s), CSV ou XLSX da proposta</label>
+            <input id="arq-fornecedor" type="file" accept=".pdf,.csv,.xlsx,.xlsm,application/pdf,text/csv" multiple disabled={ocupado} onChange={(e) => setArquivosNovos(Array.from(e.target.files ?? []))} />
           </div>
           <button className="sec" onClick={adicionarFornecedor} disabled={ocupado || !nomeNovo.trim() || arquivosNovos.length === 0}>
             + Adicionar

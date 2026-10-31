@@ -19,11 +19,23 @@ async function postar<T>(caminho: string, corpo: unknown): Promise<T> {
   return json as T;
 }
 
+const TIPOS_ARQUIVO: Record<string, string> = {
+  pdf: "application/pdf",
+  csv: "text/csv",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  xlsm: "application/vnd.ms-excel.sheet.macroEnabled.12",
+};
+
+export const extensaoDe = (nome: string) => nome.split(".").pop()?.toLowerCase() ?? "";
+export const ehPlanilha = (nome: string) => ["csv", "xlsx", "xlsm"].includes(extensaoDe(nome));
+export const ehArquivoAceito = (nome: string) => extensaoDe(nome) in TIPOS_ARQUIVO;
+
+/** Envia um PDF, CSV ou XLSX direto ao Blob e devolve a URL. */
 export async function enviarPdf(arquivo: File, pasta: string): Promise<string> {
   const blob = await upload(`cotacao/${pasta}/${arquivo.name}`, arquivo, {
     access: "public",
     handleUploadUrl: "/api/blob-upload",
-    contentType: "application/pdf",
+    contentType: TIPOS_ARQUIVO[extensaoDe(arquivo.name)] ?? "application/pdf",
   });
   return blob.url;
 }

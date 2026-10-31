@@ -93,7 +93,7 @@ def extrair_fornecedor(nome: str, urls: list) -> dict:
         pdfs = []
         for i, url in enumerate(urls):
             nome_arq = _nome_seguro(Path(url.split("?")[0]).name) or f"arquivo{i}.pdf"
-            if not nome_arq.lower().endswith(".pdf"):
+            if not nome_arq.lower().endswith((".pdf", ".csv", ".xlsx", ".xlsm")):
                 nome_arq += ".pdf"
             pdfs.append(_baixar(url, pasta / nome_arq))
 
@@ -331,5 +331,8 @@ def identificar_documento(url: str, nome_arquivo: str = "") -> dict:
     with tempfile.TemporaryDirectory() as t:
         tmp = Path(t)
         _preparar_llm(tmp)
-        caminho = _baixar(url, tmp / "documento.pdf")
+        extensao = Path(nome_arquivo).suffix.lower()
+        if extensao not in (".pdf", ".csv", ".xlsx", ".xlsm"):
+            extensao = ".pdf"
+        caminho = _baixar(url, tmp / f"documento{extensao}")
         return extrair_llm.identificar_documento_llm(caminho, nome_arquivo)

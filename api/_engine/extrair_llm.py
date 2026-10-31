@@ -473,6 +473,46 @@ def disponivel() -> bool:
     return _client() is not None
 
 
+EXTENSOES_PLANILHA = (".csv", ".xlsx", ".xlsm")
+LIMITE_TEXTO_PLANILHA = 60_000  # caracteres enviados por planilha
+
+
+def eh_planilha(caminho) -> bool:
+    return Path(caminho).suffix.lower() in EXTENSOES_PLANILHA
+
+
+def _planilha_para_texto(caminho: Path, limite: int = LIMITE_TEXTO_PLANILHA) -> str:
+    """Conteúdo da planilha como texto (linhas com células separadas por ' | '), para a LLM ler como um documento."""
+    caminho = Path(caminho)
+    linhas: List[str] = []
+    if caminho.suffix.lower() == ".csv":
+        bruto = caminho.read_bytes()
+        for codificacao in ("utf-8-sig", "cp1252"):
+            try:
+                texto = bruto.decode(codificacao)
+                break
+            except UnicodeDecodeError:
+                continue
+        else:
+            texto = bruto.decode("latin-1", errors="replace")
+        linhas = [l.strip() for l in texto.splitlines() if l.strip()]
+    else:
+        from openpyxl import load_workbook
+        wb = load_workbook(caminho, data_only=True, read_only=True)
+        for ws in wb.worksheets:
+            linhas.append(f"## Aba: {ws.title}")
+            for row in ws.iter_rows(values_only=True):
+                celulas = ["" if v is None else str(v).strip() for v in row]
+                if any(celulas):
+                    linhas.append(" | ".join(celulas).rstrip(" |"))
+        wb.close()
+    return "\n".join(linhas)[:limite]
+
+
+def _bloco_planilha(caminho: Path) -> dict:
+    return {"type": "text", "text": f'Planilha "{Path(caminho).name}" (conteúdo em texto):\n\n{_planilha_para_texto(caminho)}'}
+
+
 def _blocos_documentos(caminhos: List[Path]) -> list:
     """Monta os blocos de documento (1 por PDF). Cada extração faz só 1
     chamada de API, então não há uma 2ª chamada no mesmo recurso que se
@@ -485,18 +525,22 @@ def _blocos_documentos(caminhos: List[Path]) -> list:
     contrato-modelo, normalmente bem maior) tem as páginas irrelevantes
     cortadas antes de enviar (ver _dados_documento/_paginas_relevantes), pra
     reduzir tokens sem arriscar perder informação que só exista na proposta."""
-    if len(caminhos) > 1:
+    # Planilhas (csv/xlsx) viram blocos de texto; só os PDFs seguem a lógica de recorte.
+    planilhas = [c for c in caminhos if eh_planilha(c)]
+    pdfs = [c for c in caminhos if not eh_planilha(c)]
+    blocos = [_bloco_planilha(c) for c in planilhas]
+    if len(pdfs) > 1:
         # Número de páginas, não tamanho em bytes - um PDF de poucas páginas
         # mas com imagens/fontes embutidas pode "pesar" mais em bytes do que
         # um anexo de dezenas de páginas só com texto simples.
-        menos_paginas = min(caminhos, key=_contar_paginas)
+        menos_paginas = min(pdfs, key=_contar_paginas)
         dados = [
             _dados_documento(c, permitir_recorte=(c != menos_paginas))
-            for c in caminhos
+            for c in pdfs
         ]
     else:
-        dados = [caminhos[0].read_bytes()]
-    return [_bloco_documento(d) for d in dados]
+        dados = [c.read_bytes() for c in pdfs]
+    return [_bloco_documento(d) for d in dados] + blocos
 
 
 def extrair_proposta_llm(caminhos_pdf, nome_pasta: str):
@@ -653,16 +697,20 @@ def identificar_documento_llm(caminho_pdf, nome_arquivo: str = "") -> dict:
     if client is None:
         return palpite
     try:
-        if _PYPDF_DISPONIVEL:
-            total = _contar_paginas(caminho)
-            dados = _pdf_recortado(caminho, list(range(min(3, total)))) if total < 10**6 else caminho.read_bytes()
+        if eh_planilha(caminho):
+            bloco = {"type": "text", "text": f'Planilha "{nome_arquivo}" (início do conteúdo):\n\n{_planilha_para_texto(caminho, 8000)}'}
         else:
-            dados = caminho.read_bytes()
+            if _PYPDF_DISPONIVEL:
+                total = _contar_paginas(caminho)
+                dados = _pdf_recortado(caminho, list(range(min(3, total)))) if total < 10**6 else caminho.read_bytes()
+            else:
+                dados = caminho.read_bytes()
+            bloco = _bloco_documento(dados)
         resp = client.messages.parse(
             model=MODEL_ID,
             max_tokens=256,
             system=_SYSTEM_IDENTIFICAR,
-            messages=[{"role": "user", "content": [_bloco_documento(dados), {
+            messages=[{"role": "user", "content": [bloco, {
                 "type": "text",
                 "text": f'Arquivo: "{nome_arquivo}". Identifique o fornecedor, o tipo do documento e o cliente.',
             }]}],
