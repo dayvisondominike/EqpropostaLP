@@ -181,6 +181,8 @@ tr.lider .rank { background: var(--amarelo); }
 .rotulo-pesos span { font-size: 13px; font-weight: 600; }
 .rotulo-pesos .soma-ok { color: var(--verde-vivo); }
 .rotulo-pesos .soma-aviso { color: var(--aviso); }
+.rotulo-pesos .soma-erro { color: var(--erro); }
+.alerta-pesos { margin-bottom: 10px; padding: 10px 14px; border-radius: 8px; background: #fdecec; border: 1px solid var(--erro); color: var(--erro); font-weight: 600; font-size: 14px; }
 
 /* Tela inicial: nova equalização ou abrir existente */
 .voltar-inicio { margin-top: 12px; margin-left: 10px; padding: 4px 14px; border-radius: 999px; background: rgba(255,255,255,.16); color: #fff; font-size: 14px; font-weight: 500; border: 1px solid rgba(255,255,255,.5); }

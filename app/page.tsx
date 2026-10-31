@@ -288,7 +288,7 @@ export default function Home() {
   }
 
   async function recalcular() {
-    if (!cliente || !params) return;
+    if (!cliente || !params || pesosExcedem) return;
     setOcupado(true);
     setErro("");
     try {
@@ -342,6 +342,7 @@ export default function Home() {
   const setPeso = (k: keyof typeof PESOS_PADRAO, v: number) =>
     setParams((p) => (p ? { ...p, pesos: { ...(p.pesos ?? PESOS_PADRAO), [k]: v } } : p));
   const somaPesos = params ? Object.values(params.pesos ?? PESOS_PADRAO).reduce((a, b) => a + b, 0) : 0;
+  const pesosExcedem = somaPesos > 100.05;
   const num = (v: string) => (v === "" ? 0 : Number(v));
 
   return (
@@ -616,11 +617,17 @@ export default function Home() {
             </div>
             <div className="rotulo-pesos">
               Pesos da pontuação do rank
-              <span className={Math.abs(somaPesos - 100) < 0.05 ? "soma-ok" : "soma-aviso"}>
+              <span className={pesosExcedem ? "soma-erro" : Math.abs(somaPesos - 100) < 0.05 ? "soma-ok" : "soma-aviso"}>
                 Soma: {somaPesos.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
-                {Math.abs(somaPesos - 100) < 0.05 ? "" : " — será reescalada para 100"}
+                {pesosExcedem ? "" : Math.abs(somaPesos - 100) < 0.05 ? "" : " — será reescalada para 100"}
               </span>
             </div>
+            {pesosExcedem && (
+              <div className="alerta-pesos" role="alert">
+                ⚠ A soma dos pesos é {somaPesos.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}, acima de 100.
+                Corrija os valores para que a soma seja no máximo 100 — enquanto isso, o recálculo fica bloqueado.
+              </div>
+            )}
             <div className="grade">
               {ROTULOS_PESOS.map(({ chave, rotulo }) => (
                 <div key={chave}>
@@ -630,7 +637,7 @@ export default function Home() {
               ))}
             </div>
             <div style={{ marginTop: 12 }}>
-              <button className="sec" onClick={recalcular} disabled={ocupado}>↻ Recalcular com estes parâmetros</button>
+              <button className="sec" onClick={recalcular} disabled={ocupado || pesosExcedem} title={pesosExcedem ? "Corrija os pesos: a soma não pode passar de 100" : undefined}>↻ Recalcular com estes parâmetros</button>
               <button className="sec" style={{ marginLeft: 8 }} onClick={() => setP("pesos", { ...PESOS_PADRAO })} disabled={ocupado}>Restaurar pesos padrão</button>
             </div>
           </div>
