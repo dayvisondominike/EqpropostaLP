@@ -344,7 +344,6 @@ export default function Home() {
     <header>
       <div className="topo">
         <div className="topo-interno">
-          <MenuAbas ativa="/" />
           <div className="marca">Análise de Viabilidade</div>
           <h1>Equalização <i>de propostas</i></h1>
           <p>Compare propostas de fornecedores por Preço Médio, VPL e aderência ao produto do cliente.</p>
@@ -353,6 +352,7 @@ export default function Home() {
             <button className="voltar-inicio" onClick={() => setTela("inicio")} disabled={ocupado}>← Início</button>
           )}
         </div>
+        <MenuAbas ativa="/" />
       </div>
       <div className="faixa" />
     </header>

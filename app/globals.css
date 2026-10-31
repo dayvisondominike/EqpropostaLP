@@ -145,10 +145,15 @@ tr.lider .rank { background: var(--amarelo); }
 /* Consulta PLD x Energia I5 */
 .topo .voltar { display: inline-block; margin-top: 12px; color: #fff; font-size: 14px; font-weight: 500; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,.5); }
 .topo h1 i { font-size: 30px; }
-.menu-abas { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
-.menu-abas .aba { padding: 6px 16px; border-radius: 999px; color: #fff; font-size: 14px; font-weight: 500; text-decoration: none; border: 1px solid rgba(255,255,255,.5); }
-.menu-abas .aba:hover { background: rgba(255,255,255,.18); }
-.menu-abas .aba.ativa { background: var(--amarelo); border-color: var(--amarelo); color: var(--verde); font-weight: 700; }
+/* Faixa de menu: vidro fosco em toda a largura, abas como "cápsulas" com indicador amarelo */
+.menu-abas { position: relative; z-index: 1; background: rgba(0, 40, 36, .32); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-top: 1px solid rgba(255,255,255,.18); }
+.menu-abas-interno { max-width: 1120px; margin: 0 auto; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 6px; }
+.menu-abas .aba { position: relative; display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border-radius: 12px; color: rgba(255,255,255,.85); font-size: 14px; font-weight: 500; letter-spacing: .01em; text-decoration: none; transition: background .2s, color .2s, transform .2s; }
+.menu-abas .aba:hover { background: rgba(255,255,255,.14); color: #fff; transform: translateY(-1px); }
+.menu-abas .aba.ativa { background: #fff; color: var(--verde); font-weight: 700; box-shadow: 0 6px 18px rgba(0, 30, 27, .28); }
+.menu-abas .aba.ativa::after { content: ""; position: absolute; left: 18px; right: 18px; bottom: 4px; height: 3px; border-radius: 3px; background: var(--amarelo); }
+.menu-abas .aba.ativa svg { color: var(--verde-vivo); }
+@media (max-width: 600px) { .menu-abas .aba { padding: 8px 12px; font-size: 13px; } }
 .pld-barra { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: flex-end; background: var(--cartao); border: 1px solid var(--borda); border-radius: 12px; padding: 14px 18px; box-shadow: var(--sombra); }
 .pld-barra .grupo { min-width: 0; }
 .pld-barra select { width: auto; }

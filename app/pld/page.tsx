@@ -202,11 +202,11 @@ export default function PaginaPld() {
       <header>
         <div className="topo">
           <div className="topo-interno">
-            <MenuAbas ativa="/pld" />
             <div className="marca">Análise de Viabilidade</div>
             <h1>PLD × Energia I5 <i>consulta</i></h1>
             <p>Compare o preço de Energia I5 com o PLD médio mensal da CCEE, por submercado.</p>
           </div>
+          <MenuAbas ativa="/pld" />
         </div>
       </header>
       <main>
