@@ -259,6 +259,8 @@ function barrasCartao(
   const xBarra = x + nomeW + 2;
   const wMax = x + w - xBarra;
   const max = Math.max(1e-9, ...itens.map((i) => i.valor));
+  // A escala começa um pouco abaixo do menor valor para evidenciar as diferenças.
+  const piso = Math.min(...itens.map((i) => i.valor)) * 0.9;
   const altBarra = Math.min(5, passo - 1.2);
   itens.forEach((it, i) => {
     const yy = y + i * passo;
@@ -268,7 +270,7 @@ function barrasCartao(
     doc.text(cortarTexto(doc, it.nome, nomeW), x + nomeW, yy + altBarra / 2 + 1.1, { align: "right" });
     doc.setFillColor(...VERDE_CLARO);
     doc.roundedRect(xBarra, yy, wMax, altBarra, 1.2, 1.2, "F");
-    const largura = Math.max(wMax * 0.14, (it.valor / max) * wMax);
+    const largura = Math.max(wMax * 0.14, ((it.valor - piso) / Math.max(1e-9, max - piso)) * wMax);
     doc.setFillColor(...(it.lider ? VERDE : VERDE_SUAVE));
     doc.roundedRect(xBarra, yy, largura, altBarra, 1.2, 1.2, "F");
     doc.setFont("helvetica", "bold");
@@ -276,6 +278,10 @@ function barrasCartao(
     doc.setTextColor(255, 255, 255);
     doc.text(formatar(it.valor), xBarra + largura - 1.8, yy + altBarra / 2 + 1, { align: "right" });
   });
+  doc.setFont("helvetica", "italic");
+  doc.setFontSize(6);
+  doc.setTextColor(...CINZA);
+  doc.text("Escala iniciada abaixo do menor valor, para evidenciar as diferenças.", x, y + itens.length * passo + 2.2, { maxWidth: w });
   return itens.length * passo;
 }
 
@@ -720,8 +726,8 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
   const wCart = duplo ? (util - 4) / 2 : util;
   const xDir = duplo ? MARGEM + wCart + 4 : MARGEM;
   const topoBarras = 15;
-  const passoPreco = Math.max(3.8, Math.min(6.4, (alt - 16 - y - topoBarras - 4) / Math.max(1, itensPreco.length)));
-  const hCart = topoBarras + itensPreco.length * passoPreco + 4;
+  const passoPreco = Math.max(3.8, Math.min(6.4, (alt - 16 - y - topoBarras - 8) / Math.max(1, itensPreco.length)));
+  const hCart = topoBarras + itensPreco.length * passoPreco + 8;
 
   if (duplo) {
     cartaoBase(doc, MARGEM, y, wCart, hCart, VERDE);
@@ -742,8 +748,9 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
   // VPL por proposta (menor é melhor), em cartão de largura total; vai para a página seguinte se não couber.
   const comVpl = ranking.filter((r) => r["VPL (R$)"] != null);
   if (comVpl.length > 0) {
-    const passoVpl = 5.6;
-    const hVpl = topoBarras + comVpl.length * passoVpl + 4;
+    // Reduz o espaçamento para o VPL caber na mesma página quando possível.
+    const passoVpl = Math.max(3.8, Math.min(5.6, (alt - 16 - y - topoBarras - 8) / comVpl.length));
+    const hVpl = topoBarras + comVpl.length * passoVpl + 8;
     if (y + hVpl > alt - 16) {
       doc.addPage();
       cabecalhoPagina(c, "Resultado", "VPL por Proposta");
