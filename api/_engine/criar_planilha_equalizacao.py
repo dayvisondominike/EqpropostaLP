@@ -150,17 +150,23 @@ def _calcular_preco_medio_vpl(row: pd.Series):
     return media, vpl
 
 
-def ordenar_propostas_por_vpl(df_propostas: pd.DataFrame) -> pd.DataFrame:
-    """Ordena as propostas por VPL (menor primeiro) usando o Preço Médio como
-    critério de desempate. Propostas sem dados (ex.: PDF inválido) vão para o
-    final, mantendo a ordem original entre si."""
-    medias, vpls = zip(*df_propostas.apply(_calcular_preco_medio_vpl, axis=1))
-    df = df_propostas.copy()
-    df["_preco_medio_tmp"] = medias
-    df["_vpl_tmp"] = vpls
-    df["_sem_dados_tmp"] = df["_vpl_tmp"].isna()
-    df = df.sort_values(by=["_sem_dados_tmp", "_vpl_tmp", "_preco_medio_tmp"], kind="stable")
-    return df.drop(columns=["_preco_medio_tmp", "_vpl_tmp", "_sem_dados_tmp"]).reset_index(drop=True)
+def ordenar_propostas_por_rank(df_propostas: pd.DataFrame) -> pd.DataFrame:
+    """Ordena as propostas pelo critério do Rank (ver criterio_rank.py): menor
+    Preço Médio, menor VPL, maior Flexibilidade, maior Sazonalidade e melhor
+    Modulação. Propostas sem dados (ex.: PDF inválido) vão para o final,
+    mantendo a ordem original entre si."""
+    import criterio_rank  # import tardio: criterio_rank depende de analisar_propostas, que importa este módulo
+
+    chaves = []
+    for _, row in df_propostas.iterrows():
+        media, vpl = _calcular_preco_medio_vpl(row)
+        if vpl is None:
+            chaves.append((1,))
+        else:
+            chaves.append((0,) + criterio_rank.chave_rank(
+                media, vpl, row.get("Flexibilidade"), row.get("Sazonalidade"), row.get("Modulação")))
+    ordem = sorted(range(len(chaves)), key=lambda i: chaves[i])  # sorted é estável
+    return df_propostas.iloc[ordem].reset_index(drop=True)
 
 
 def montar_aba_equalizacao(wb: Workbook, df_propostas: pd.DataFrame):
@@ -195,7 +201,7 @@ def montar_aba_equalizacao(wb: Workbook, df_propostas: pd.DataFrame):
 def main():
     df_propostas = pd.read_csv(PROCESSADO_DIR / "propostas.csv")
     df_cliente = pd.read_csv(PROCESSADO_DIR / "cliente.csv").iloc[0]
-    df_propostas = ordenar_propostas_por_vpl(df_propostas)
+    df_propostas = ordenar_propostas_por_rank(df_propostas)
 
     wb = Workbook()
     montar_aba_cliente(wb, df_cliente)
@@ -204,7 +210,7 @@ def main():
     arquivo_saida = caminho_planilha_saida()
     wb.save(arquivo_saida)
     print(f"Planilha criada em: {arquivo_saida}")
-    print("Ordem das propostas (por VPL, menor primeiro):", ", ".join(df_propostas["Fornecedor"]))
+    print("Ordem das propostas (pelo critério do rank):", ", ".join(df_propostas["Fornecedor"]))
 
 
 if __name__ == "__main__":

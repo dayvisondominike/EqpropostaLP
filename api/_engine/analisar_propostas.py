@@ -3,8 +3,9 @@ Etapa 5 - Analisa a aderencia de cada proposta ao produto solicitado pelo
 cliente (aba "Cliente") e grava o "Rank da Equalização" na aba "Equalização"
 (1 = melhor colocada), além de um resumo executivo na aba "Cliente".
 
-O rank é definido por preço: menor VPL primeiro, usando o Preço Médio como
-critério de desempate. Todas as propostas entram no mesmo rank, independente
+O rank é definido por criterio_rank.py: menor Preço Médio, menor VPL, maior
+Flexibilidade, maior Sazonalidade e melhor Modulação (cada critério desempata
+o anterior). Todas as propostas entram no mesmo rank, independente
 do status de aderência (aderência é só informativa nas colunas ao lado).
 As linhas da tabela já são gravadas nessa ordem pela etapa 2
 (criar_planilha_equalizacao.py) - aqui só é preciso rotular a posição.
@@ -27,6 +28,7 @@ import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 import criar_planilha_equalizacao
+import criterio_rank
 
 BASE_DIR = Path(__file__).parent
 
@@ -348,7 +350,7 @@ def main():
         cel.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         cel.border = BORDA_FINA
 
-    # As linhas já vêm ordenadas por VPL crescente (desempate por Preço Médio)
+    # As linhas já vêm ordenadas pelo critério do rank (criterio_rank.py)
     # desde a etapa 2 - aqui só avaliamos aderência e numeramos a posição.
     propostas = []  # (linha, fornecedor, preco_medio, vpl)
     for linha in range(LINHA_CABECALHO + 1, n_linhas + 1):
@@ -384,7 +386,7 @@ def main():
     ws.column_dimensions[ws.cell(row=LINHA_CABECALHO, column=col_obs).column_letter].width = 45
     ws.column_dimensions[ws.cell(row=LINHA_CABECALHO, column=col_rank).column_letter].width = 14
 
-    # Numera o rank pela posição na tabela (já ordenada por VPL na etapa 2).
+    # Numera o rank pela posição na tabela (já ordenada pelo critério do rank na etapa 2).
     for posicao, (linha, _forn, _media, _vpl) in enumerate(propostas, start=1):
         cel_rank = ws.cell(row=linha, column=col_rank, value=posicao)
         if posicao == 1:
@@ -408,9 +410,7 @@ def main():
             ("VPL do contrato (TMA 10%)", f"R$ {vpl1:,.2f}"),
             (
                 "Critério de decisão",
-                "Rank por menor VPL (TMA 10%), com desempate pelo Preço Médio; todas as "
-                "propostas recebidas entram no rank, independente da aderência ao produto "
-                "solicitado (a aderência fica registrada nas colunas ao lado)",
+                criterio_rank.DESCRICAO,
             ),
             (
                 "Ranking completo (1º ao último)",

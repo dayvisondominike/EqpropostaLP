@@ -28,6 +28,7 @@ import pandas as pd  # noqa: E402
 import analisar_propostas  # noqa: E402
 import calcular_equalizacao  # noqa: E402
 import criar_planilha_equalizacao  # noqa: E402
+import criterio_rank  # noqa: E402
 import extrair_dados_pdfs  # noqa: E402
 import extrair_llm  # noqa: E402
 import tabela_cotacoes  # noqa: E402
@@ -269,17 +270,26 @@ def montar_ranking(df_propostas: pd.DataFrame, cliente: pd.Series) -> pd.DataFra
             "Observações": obs,
         })
     df = pd.DataFrame(linhas)
-    df["_sem_dados"] = df["VPL (R$)"].isna()
-    df = df.sort_values(by=["_sem_dados", "VPL (R$)", "Preço Médio (R$/MWh)"], kind="stable").reset_index(drop=True)
+    # Critério do rank (criterio_rank.py): preço médio, VPL, flexibilidade, sazonalidade, modulação.
+    chaves = []
+    for linha, (_, row) in zip(linhas, df_propostas.iterrows()):
+        if linha["VPL (R$)"] is None:
+            chaves.append((1,))
+        else:
+            chaves.append((0,) + criterio_rank.chave_rank(
+                linha["Preço Médio (R$/MWh)"], linha["VPL (R$)"],
+                row.get("Flexibilidade"), row.get("Sazonalidade"), row.get("Modulação")))
+    ordem = sorted(range(len(chaves)), key=lambda i: chaves[i])  # sorted é estável
+    sem_dados = [chaves[i] == (1,) for i in ordem]
+    df = df.iloc[ordem].reset_index(drop=True)
     rank, contador = [], 0
-    for sem in df["_sem_dados"]:
+    for sem in sem_dados:
         if sem:
             rank.append("-")
         else:
             contador += 1
             rank.append(contador)
     df["Rank"] = rank
-    df = df.drop(columns=["_sem_dados"])
     return df[["Rank", "Fornecedor", "Flex", "Tipo de Proposta", "Preço Médio (R$/MWh)", "VPL (R$)",
                "Aderente ao Produto", "Observações"]]
 
