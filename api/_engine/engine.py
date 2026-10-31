@@ -190,6 +190,7 @@ def parametros_padrao() -> dict:
         "ano_inicio": 2027, "ano_fim": 2029, "modulacao": "Flat",
         "flex_superior": 30.0, "flex_inferior": 30.0,
         "sazonalizacao": "Flat", "sazo_superior": 0.0, "sazo_inferior": 0.0,
+        "pesos": dict(criterio_rank.PESOS_PADRAO),
     }
 
 
@@ -225,6 +226,7 @@ def _aplicar_parametros(p: dict):
     flat = p["sazonalizacao"] == "Flat"
     analisar_propostas.SAZONALIZACAO_SUPERIOR_MINIMA = 0.0 if flat else float(p["sazo_superior"])
     analisar_propostas.SAZONALIZACAO_INFERIOR_MINIMA = 0.0 if flat else float(p["sazo_inferior"])
+    criterio_rank.definir_pesos(p.get("pesos"))
 
 
 # ----------------------------------------------------------------------------

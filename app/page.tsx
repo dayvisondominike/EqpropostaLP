@@ -7,6 +7,8 @@ import { gerarRelatorioPdf, type DadosMercado } from "@/lib/relatorio";
 import { abrirEqualizacao, buscarPld, ehArquivoAceito, ehPlanilha, identificarPdf, consolidar, enviarPdf, excluirEqualizacao, extrairCliente, extrairFornecedor, listarEqualizacoes, salvarEqualizacao } from "@/lib/api";
 import type { ResumoEqualizacao } from "@/lib/equalizacoes";
 import {
+  PESOS_PADRAO,
+  ROTULOS_PESOS,
   SUBMERCADOS,
   type Cliente,
   type Fornecedor,
@@ -98,7 +100,7 @@ export default function Home() {
       setFornecedores([]);
       setCliente(eq.cliente);
       setPropostas(eq.propostas);
-      setParams(eq.params);
+      setParams({ ...eq.params, pesos: eq.params.pesos ?? PESOS_PADRAO });
       setResultado(eq.resultado);
       setIdSalvo(eq.id);
       setAvisoBanco(`Equalização aberta do banco (salva em ${new Date(eq.atualizadoEm).toLocaleString("pt-BR")}).`);
@@ -337,6 +339,9 @@ export default function Home() {
   const pisoMedio = Math.min(maxMedio, ...comparativo.map((r) => r["Preço Médio (R$/MWh)"] ?? maxMedio)) * 0.9;
 
   const setP = <K extends keyof Params>(k: K, v: Params[K]) => setParams((p) => (p ? { ...p, [k]: v } : p));
+  const setPeso = (k: keyof typeof PESOS_PADRAO, v: number) =>
+    setParams((p) => (p ? { ...p, pesos: { ...(p.pesos ?? PESOS_PADRAO), [k]: v } } : p));
+  const somaPesos = params ? Object.values(params.pesos ?? PESOS_PADRAO).reduce((a, b) => a + b, 0) : 0;
   const num = (v: string) => (v === "" ? 0 : Number(v));
 
   return (
@@ -609,8 +614,24 @@ export default function Home() {
                 </>
               )}
             </div>
+            <div className="rotulo-pesos">
+              Pesos da pontuação do rank
+              <span className={Math.abs(somaPesos - 100) < 0.05 ? "soma-ok" : "soma-aviso"}>
+                Soma: {somaPesos.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
+                {Math.abs(somaPesos - 100) < 0.05 ? "" : " — será reescalada para 100"}
+              </span>
+            </div>
+            <div className="grade">
+              {ROTULOS_PESOS.map(({ chave, rotulo }) => (
+                <div key={chave}>
+                  <label>{rotulo}</label>
+                  <input type="number" min={0} step="1" value={(params.pesos ?? PESOS_PADRAO)[chave]} onChange={(e) => setPeso(chave, num(e.target.value))} />
+                </div>
+              ))}
+            </div>
             <div style={{ marginTop: 12 }}>
               <button className="sec" onClick={recalcular} disabled={ocupado}>↻ Recalcular com estes parâmetros</button>
+              <button className="sec" style={{ marginLeft: 8 }} onClick={() => setP("pesos", { ...PESOS_PADRAO })} disabled={ocupado}>Restaurar pesos padrão</button>
             </div>
           </div>
 

@@ -12,7 +12,34 @@ export type Params = {
   sazonalizacao: "Flat" | "Personalizada";
   sazo_superior: number;
   sazo_inferior: number;
+  /** Pesos da pontuação do rank; ausente em equalizações salvas antes da pontuação (vale o padrão). */
+  pesos?: Pesos;
 };
+
+export type Pesos = {
+  preco: number;
+  vpl: number;
+  flex_inferior: number;
+  flex_superior: number;
+  sazo_inferior: number;
+  sazo_superior: number;
+  modulacao: number;
+};
+
+/** Mesmos valores de PESOS_PADRAO em api/_engine/criterio_rank.py. */
+export const PESOS_PADRAO: Pesos = {
+  preco: 35, vpl: 25, flex_inferior: 10, flex_superior: 10, sazo_inferior: 5, sazo_superior: 5, modulacao: 10,
+};
+
+export const ROTULOS_PESOS: { chave: keyof Pesos; rotulo: string }[] = [
+  { chave: "preco", rotulo: "Preço médio" },
+  { chave: "vpl", rotulo: "VPL" },
+  { chave: "flex_inferior", rotulo: "Flexibilidade inferior −" },
+  { chave: "flex_superior", rotulo: "Flexibilidade superior +" },
+  { chave: "sazo_inferior", rotulo: "Sazonalização inferior −" },
+  { chave: "sazo_superior", rotulo: "Sazonalização superior +" },
+  { chave: "modulacao", rotulo: "Modulação" },
+];
 
 export const SUBMERCADOS = [
   "Nordeste (NE)",

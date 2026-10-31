@@ -425,7 +425,7 @@ def main():
             ("VPL do contrato (TMA 10%)", f"R$ {vpl1:,.2f}"),
             (
                 "Critério de decisão",
-                criterio_rank.DESCRICAO,
+                criterio_rank.descricao(),
             ),
             (
                 "Ranking completo (1º ao último)",

@@ -2,7 +2,8 @@
 Critério de definição do vencedor no Rank da Equalização: pontuação de 0 a 100.
 
 Cada proposta soma pontos em 7 critérios; quem tiver mais pontos fica em 1º lugar.
-Os pesos ficam todos em PESOS (somam 100) e podem ser ajustados num só lugar:
+Os pesos padrão ficam em PESOS_PADRAO (somam 100); o usuário pode ajustá-los nos
+Parâmetros da tela (params["pesos"]), e definir_pesos reescala para somar 100:
 
   Preço Médio ........................ 35
   VPL ................................ 25
@@ -24,7 +25,7 @@ maior limite inferior e superior de Flexibilidade, idem de Sazonalidade e melhor
 """
 import analisar_propostas
 
-PESOS = {
+PESOS_PADRAO = {
     "preco": 35.0,
     "vpl": 25.0,
     "flex_inferior": 10.0,
@@ -34,13 +35,39 @@ PESOS = {
     "modulacao": 10.0,
 }
 
-DESCRICAO = (
-    "Pontuação de 0 a 100 (preço médio 35, VPL 25, flexibilidade 20, sazonalidade 10 e "
-    "modulação 10): a proposta com mais pontos fica em 1º lugar; empates pela pontuação "
-    "desempatam por menor preço médio, menor VPL, flexibilidade, sazonalidade e modulação; "
-    "todas as propostas recebidas entram no rank, independente da aderência ao produto "
-    "solicitado (a aderência fica registrada nas colunas ao lado)"
-)
+# Pesos em uso (definidos por definir_pesos a cada consolidação; sempre somam 100).
+PESOS = dict(PESOS_PADRAO)
+
+
+def definir_pesos(pesos: dict | None):
+    """Define os pesos da pontuação a partir dos informados (faltantes = padrão). Pesos que não
+    somam 100 são reescalados proporcionalmente para somar 100."""
+    novos = {k: float(v) for k, v in {**PESOS_PADRAO, **(pesos or {})}.items() if k in PESOS_PADRAO}
+    if any(v < 0 for v in novos.values()):
+        raise ValueError("Os pesos da pontuação não podem ser negativos.")
+    soma = sum(novos.values())
+    if soma <= 0:
+        raise ValueError("A soma dos pesos da pontuação deve ser maior que zero.")
+    PESOS.clear()
+    PESOS.update({k: v * 100.0 / soma for k, v in novos.items()})
+
+
+def descricao() -> str:
+    """Texto do critério de decisão (resumo da planilha), com os pesos em uso."""
+    p = PESOS
+
+    def n(valor: float) -> str:
+        return f"{valor:.1f}".rstrip("0").rstrip(".").replace(".", ",")
+
+    return (
+        f"Pontuação de 0 a 100 (preço médio {n(p['preco'])}, VPL {n(p['vpl'])}, "
+        f"flexibilidade {n(p['flex_inferior'] + p['flex_superior'])}, "
+        f"sazonalidade {n(p['sazo_inferior'] + p['sazo_superior'])} e modulação {n(p['modulacao'])}): "
+        "a proposta com mais pontos fica em 1º lugar; empates pela pontuação desempatam por menor "
+        "preço médio, menor VPL, flexibilidade, sazonalidade e modulação; todas as propostas "
+        "recebidas entram no rank, independente da aderência ao produto solicitado (a aderência "
+        "fica registrada nas colunas ao lado)"
+    )
 
 
 def _limites(texto) -> tuple:

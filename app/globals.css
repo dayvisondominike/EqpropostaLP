@@ -176,6 +176,12 @@ tr.lider .rank { background: var(--amarelo); }
 .pld-barra .seg button { padding: 8px 12px; }
 @media (min-width: 1100px) { .pld-barra { flex-wrap: nowrap; } }
 
+/* Pesos da pontuação do rank (Parâmetros) */
+.rotulo-pesos { margin: 18px 0 8px; font-weight: 700; color: var(--verde); display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.rotulo-pesos span { font-size: 13px; font-weight: 600; }
+.rotulo-pesos .soma-ok { color: var(--verde-vivo); }
+.rotulo-pesos .soma-aviso { color: var(--aviso); }
+
 /* Tela inicial: nova equalização ou abrir existente */
 .voltar-inicio { margin-top: 12px; margin-left: 10px; padding: 4px 14px; border-radius: 999px; background: rgba(255,255,255,.16); color: #fff; font-size: 14px; font-weight: 500; border: 1px solid rgba(255,255,255,.5); }
 .voltar-inicio:hover:not(:disabled) { background: rgba(255,255,255,.28); }
