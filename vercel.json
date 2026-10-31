@@ -3,15 +3,15 @@
   "builds": [
     { "src": "package.json", "use": "@vercel/next" },
     {
-      "src": "api/*.py",
+      "src": "api/index.py",
       "use": "@vercel/python",
       "config": { "maxDuration": 300, "excludeFiles": "{legacy/**,app/**,lib/**,node_modules/**,.next/**,modelos/**,imagens/**}" }
     }
   ],
   "rewrites": [
-    { "source": "/api/cliente", "destination": "/api/cliente.py" },
-    { "source": "/api/extrair", "destination": "/api/extrair.py" },
-    { "source": "/api/consolidar", "destination": "/api/consolidar.py" },
-    { "source": "/api/identificar", "destination": "/api/identificar.py" }
+    { "source": "/api/cliente", "destination": "/api/index.py?rota=cliente" },
+    { "source": "/api/extrair", "destination": "/api/index.py?rota=extrair" },
+    { "source": "/api/consolidar", "destination": "/api/index.py?rota=consolidar" },
+    { "source": "/api/identificar", "destination": "/api/index.py?rota=identificar" }
   ]
 }
