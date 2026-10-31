@@ -3,9 +3,9 @@ Etapa 5 - Analisa a aderencia de cada proposta ao produto solicitado pelo
 cliente (aba "Cliente") e grava o "Rank da Equalização" na aba "Equalização"
 (1 = melhor colocada), além de um resumo executivo na aba "Cliente".
 
-O rank é definido por criterio_rank.py: menor Preço Médio, menor VPL, maior
-Flexibilidade, maior Sazonalidade e melhor Modulação (cada critério desempata
-o anterior). Todas as propostas entram no mesmo rank, independente
+O rank é definido por criterio_rank.py: pontuação de 0 a 100 (preço médio,
+VPL, flexibilidade, sazonalidade e modulação); empates desempatam por menor
+Preço Médio, menor VPL e demais critérios. Todas as propostas entram no mesmo rank, independente
 do status de aderência (aderência é só informativa nas colunas ao lado).
 As linhas da tabela já são gravadas nessa ordem pela etapa 2
 (criar_planilha_equalizacao.py) - aqui só é preciso rotular a posição.
@@ -338,11 +338,13 @@ def main():
     col_aderencia = max(cabecalho.values()) + 1
     col_obs = col_aderencia + 1
     col_rank = col_aderencia + 2
+    col_pontos = col_aderencia + 3
 
     for col, titulo in (
         (col_aderencia, "Aderente ao Produto do Cliente"),
         (col_obs, "Observações de Aderência"),
         (col_rank, "Rank da Equalização"),
+        (col_pontos, "Pontuação (0 a 100)"),
     ):
         cel = ws.cell(row=LINHA_CABECALHO, column=col, value=titulo)
         cel.font = Font(color="FFFFFF", bold=True)
@@ -353,6 +355,7 @@ def main():
     # As linhas já vêm ordenadas pelo critério do rank (criterio_rank.py)
     # desde a etapa 2 - aqui só avaliamos aderência e numeramos a posição.
     propostas = []  # (linha, fornecedor, preco_medio, vpl)
+    itens_pontuacao = []  # um por proposta de `propostas`, para a pontuação do rank
     for linha in range(LINHA_CABECALHO + 1, n_linhas + 1):
         row = {nome: ws.cell(row=linha, column=c).value for nome, c in cabecalho.items()}
         if row.get("Volume (MWm)") in (None, ""):
@@ -363,6 +366,8 @@ def main():
             precos_ano = {a: _num(row[ws.cell(row=LINHA_CABECALHO, column=c).value]) for a, c in colunas_preco.items()}
             media, vpl = calcular_preco_medio_vpl(precos_ano, _num(row["Volume (MWm)"]))
             propostas.append((linha, row["Fornecedor"], media, vpl))
+            itens_pontuacao.append({"media": media, "vpl": vpl, "flexibilidade": row.get("Flexibilidade"),
+                                    "sazonalidade": row.get("Sazonalidade"), "modulacao": row.get("Modulação")})
 
         cel_ad = ws.cell(row=linha, column=col_aderencia, value=status)
         cel_ad.border = BORDA_FINA
@@ -376,15 +381,25 @@ def main():
         cel_rank = ws.cell(row=linha, column=col_rank)
         cel_rank.border = BORDA_FINA
         cel_rank.alignment = Alignment(horizontal="center", vertical="center")
+        cel_pontos = ws.cell(row=linha, column=col_pontos)
+        cel_pontos.border = BORDA_FINA
+        cel_pontos.alignment = Alignment(horizontal="center", vertical="center")
 
         if linha % 2 == 0:
-            for c in (col_aderencia, col_obs, col_rank):
+            for c in (col_aderencia, col_obs, col_rank, col_pontos):
                 if ws.cell(row=linha, column=c).fill.fgColor.rgb in (None, "00000000"):
                     ws.cell(row=linha, column=c).fill = PatternFill("solid", fgColor=CINZA)
 
     ws.column_dimensions[ws.cell(row=LINHA_CABECALHO, column=col_aderencia).column_letter].width = 22
     ws.column_dimensions[ws.cell(row=LINHA_CABECALHO, column=col_obs).column_letter].width = 45
     ws.column_dimensions[ws.cell(row=LINHA_CABECALHO, column=col_rank).column_letter].width = 14
+    ws.column_dimensions[ws.cell(row=LINHA_CABECALHO, column=col_pontos).column_letter].width = 14
+
+    for (linha, _forn, _media, _vpl), pontos in zip(propostas, criterio_rank.pontuar(itens_pontuacao)):
+        ws.cell(row=linha, column=col_pontos, value=round(pontos, 1))
+    for linha in range(LINHA_CABECALHO + 1, n_linhas + 1):
+        if ws.cell(row=linha, column=col_pontos).value is None:
+            ws.cell(row=linha, column=col_pontos, value="-")
 
     # Numera o rank pela posição na tabela (já ordenada pelo critério do rank na etapa 2).
     for posicao, (linha, _forn, _media, _vpl) in enumerate(propostas, start=1):

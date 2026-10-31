@@ -151,21 +151,16 @@ def _calcular_preco_medio_vpl(row: pd.Series):
 
 
 def ordenar_propostas_por_rank(df_propostas: pd.DataFrame) -> pd.DataFrame:
-    """Ordena as propostas pelo critério do Rank (ver criterio_rank.py): menor
-    Preço Médio, menor VPL, maior Flexibilidade, maior Sazonalidade e melhor
-    Modulação. Propostas sem dados (ex.: PDF inválido) vão para o final,
-    mantendo a ordem original entre si."""
+    """Ordena as propostas pela pontuação do Rank (ver criterio_rank.py). Propostas
+    sem dados (ex.: PDF inválido) vão para o final, mantendo a ordem original entre si."""
     import criterio_rank  # import tardio: criterio_rank depende de analisar_propostas, que importa este módulo
 
-    chaves = []
+    itens = []
     for _, row in df_propostas.iterrows():
         media, vpl = _calcular_preco_medio_vpl(row)
-        if vpl is None:
-            chaves.append((1,))
-        else:
-            chaves.append((0,) + criterio_rank.chave_rank(
-                media, vpl, row.get("Flexibilidade"), row.get("Sazonalidade"), row.get("Modulação")))
-    ordem = sorted(range(len(chaves)), key=lambda i: chaves[i])  # sorted é estável
+        itens.append({"media": media, "vpl": vpl, "flexibilidade": row.get("Flexibilidade"),
+                      "sazonalidade": row.get("Sazonalidade"), "modulacao": row.get("Modulação")})
+    ordem, _pontos = criterio_rank.ordenar(itens)
     return df_propostas.iloc[ordem].reset_index(drop=True)
 
 

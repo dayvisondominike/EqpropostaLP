@@ -269,28 +269,23 @@ def montar_ranking(df_propostas: pd.DataFrame, cliente: pd.Series) -> pd.DataFra
             "Aderente ao Produto": status,
             "Observações": obs,
         })
-    df = pd.DataFrame(linhas)
-    # Critério do rank (criterio_rank.py): preço médio, VPL, flexibilidade, sazonalidade, modulação.
-    chaves = []
-    for linha, (_, row) in zip(linhas, df_propostas.iterrows()):
-        if linha["VPL (R$)"] is None:
-            chaves.append((1,))
-        else:
-            chaves.append((0,) + criterio_rank.chave_rank(
-                linha["Preço Médio (R$/MWh)"], linha["VPL (R$)"],
-                row.get("Flexibilidade"), row.get("Sazonalidade"), row.get("Modulação")))
-    ordem = sorted(range(len(chaves)), key=lambda i: chaves[i])  # sorted é estável
-    sem_dados = [chaves[i] == (1,) for i in ordem]
-    df = df.iloc[ordem].reset_index(drop=True)
+    # Rank por pontuação (criterio_rank.py).
+    itens = [{"media": l["Preço Médio (R$/MWh)"], "vpl": l["VPL (R$)"], "flexibilidade": row.get("Flexibilidade"),
+              "sazonalidade": row.get("Sazonalidade"), "modulacao": row.get("Modulação")}
+             for l, (_, row) in zip(linhas, df_propostas.iterrows())]
+    ordem, pontos = criterio_rank.ordenar(itens)
+    for l, p in zip(linhas, pontos):
+        l["Pontuação"] = None if p is None else round(p, 1)
+    df = pd.DataFrame(linhas).iloc[ordem].reset_index(drop=True)
     rank, contador = [], 0
-    for sem in sem_dados:
-        if sem:
+    for vpl in df["VPL (R$)"]:
+        if pd.isna(vpl):
             rank.append("-")
         else:
             contador += 1
             rank.append(contador)
     df["Rank"] = rank
-    return df[["Rank", "Fornecedor", "Flex", "Tipo de Proposta", "Preço Médio (R$/MWh)", "VPL (R$)",
+    return df[["Rank", "Fornecedor", "Flex", "Tipo de Proposta", "Preço Médio (R$/MWh)", "VPL (R$)", "Pontuação",
                "Aderente ao Produto", "Observações"]]
 
 

@@ -552,7 +552,7 @@ export default function Home() {
             <table>
               <thead>
                 <tr>
-                  <th>Rank</th><th>Fornecedor</th><th>Flex</th><th>Tipo</th><th>Preço médio</th><th>VPL</th><th>Aderência</th><th>Observações</th>
+                  <th>Rank</th><th>Fornecedor</th><th>Flex</th><th>Tipo</th><th>Preço médio</th><th>VPL</th><th>Pontos</th><th>Aderência</th><th>Observações</th>
                 </tr>
               </thead>
               <tbody>
@@ -564,6 +564,7 @@ export default function Home() {
                     <td>{r["Tipo de Proposta"]}</td>
                     <td>{moeda(r["Preço Médio (R$/MWh)"])}</td>
                     <td>{moeda(r["VPL (R$)"])}</td>
+                    <td><strong>{r.Pontuação != null ? r.Pontuação.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "—"}</strong></td>
                     <td>{tagAderencia(r["Aderente ao Produto"])}</td>
                     <td>{r.Observações}</td>
                   </tr>

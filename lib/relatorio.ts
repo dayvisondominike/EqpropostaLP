@@ -774,19 +774,20 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
   cabecalhoPagina(c, "Detalhamento", "Propostas Equalizadas");
   autoTable(doc, {
     startY: 42,
-    head: [["#", "Fornecedor", "Tipo", "Preço médio", "VPL (R$)", "Aderência"]],
+    head: [["#", "Fornecedor", "Tipo", "Preço médio", "VPL (R$)", "Pontos", "Aderência"]],
     body: ranking.map((r) => [
       String(r.Rank),
       r.Fornecedor,
       r["Tipo de Proposta"],
       num2(r["Preço Médio (R$/MWh)"] ?? 0),
       (r["VPL (R$)"] ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 }),
+      r.Pontuação != null ? r.Pontuação.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "—",
       r["Aderente ao Produto"],
     ]),
     theme: "plain",
     headStyles: { fillColor: VERDE, textColor: 255, fontStyle: "bold", lineColor: AMARELO_TABELA, lineWidth: { bottom: 0.8 } as never },
     styles: { fontSize: 8, cellPadding: 2.2, lineColor: BORDA, lineWidth: { bottom: 0.2 } as never },
-    columnStyles: { 0: { halign: "center", cellWidth: 8 }, 3: { halign: "right" }, 4: { halign: "right" } },
+    columnStyles: { 0: { halign: "center", cellWidth: 8 }, 3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "right" } },
     didParseCell: (d) => {
       if (d.section === "body" && d.row.index === 0 && lider?.Rank === 1) {
         d.cell.styles.fillColor = AMARELO_CLARO;

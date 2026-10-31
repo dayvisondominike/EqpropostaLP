@@ -32,6 +32,8 @@ export type LinhaRanking = {
   "Tipo de Proposta": string;
   "Preço Médio (R$/MWh)": number | null;
   "VPL (R$)": number | null;
+  /** 0 a 100; ausente em equalizações salvas antes da pontuação e null nas propostas sem dados. */
+  Pontuação?: number | null;
   "Aderente ao Produto": string;
   Observações: string;
 };
