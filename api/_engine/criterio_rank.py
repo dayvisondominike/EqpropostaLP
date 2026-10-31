@@ -3,7 +3,7 @@ Critério de definição do vencedor no Rank da Equalização: pontuação de 0 
 
 Cada proposta soma pontos em 7 critérios; quem tiver mais pontos fica em 1º lugar.
 Os pesos padrão ficam em PESOS_PADRAO (somam 100); o usuário pode ajustá-los nos
-Parâmetros da tela (params["pesos"]), e definir_pesos reescala para somar 100:
+Parâmetros da tela (params["pesos"]); definir_pesos recusa pesos que não somem 100:
 
   Preço Médio ........................ 35
   VPL ................................ 25
@@ -40,16 +40,22 @@ PESOS = dict(PESOS_PADRAO)
 
 
 def definir_pesos(pesos: dict | None):
-    """Define os pesos da pontuação a partir dos informados (faltantes = padrão). Pesos que não
-    somam 100 são reescalados proporcionalmente para somar 100."""
-    novos = {k: float(v) for k, v in {**PESOS_PADRAO, **(pesos or {})}.items() if k in PESOS_PADRAO}
+    """Define os pesos da pontuação a partir dos informados (faltantes = padrão). Os pesos precisam
+    somar 100 e não podem ser negativos; senão levanta ValueError (a API responde 400)."""
+    try:
+        novos = {k: float(v) for k, v in {**PESOS_PADRAO, **(pesos or {})}.items() if k in PESOS_PADRAO}
+    except (TypeError, ValueError):
+        raise ValueError("Os pesos da pontuação devem ser números.") from None
     if any(v < 0 for v in novos.values()):
         raise ValueError("Os pesos da pontuação não podem ser negativos.")
     soma = sum(novos.values())
-    if soma <= 0:
-        raise ValueError("A soma dos pesos da pontuação deve ser maior que zero.")
+    if abs(soma - 100.0) > 0.05:
+        raise ValueError(
+            f"A soma dos pesos da pontuação é {soma:g}, {'acima' if soma > 100 else 'abaixo'} de 100: "
+            "corrija os pesos para que somem exatamente 100."
+        )
     PESOS.clear()
-    PESOS.update({k: v * 100.0 / soma for k, v in novos.items()})
+    PESOS.update(novos)
 
 
 def descricao() -> str:
