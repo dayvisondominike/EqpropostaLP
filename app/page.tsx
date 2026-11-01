@@ -27,7 +27,7 @@ type FormCliente = {
 };
 
 const FORM_CLIENTE_VAZIO: FormCliente = {
-  razao: "", cnpj: "", modalidade: "", energia: "Incentivada 50%", submercado: SUBMERCADOS[1],
+  razao: "", cnpj: "", modalidade: "Atacadista", energia: "Incentivada 50%", submercado: SUBMERCADOS[1],
   anoIni: "2027", anoFim: "2029", volume: "", flexInf: "30", flexSup: "30", sazoInf: "0", sazoSup: "0", modulacao: "Flat",
 };
 
@@ -512,8 +512,7 @@ export default function Home() {
         ) : (
           <div className="form-cliente">
             {([
-              ["razao", "Razão Social *", "text"], ["cnpj", "CNPJ *", "text"], ["modalidade", "Modalidade *", "text"],
-              ["volume", "Volume (MWm) *", "text"], ["anoIni", "Ano inicial *", "number"], ["anoFim", "Ano final *", "number"],
+              ["razao", "Razão Social *", "text"], ["cnpj", "CNPJ *", "text"],              ["volume", "Volume (MWm) *", "text"], ["anoIni", "Ano inicial *", "number"], ["anoFim", "Ano final *", "number"],
               ["flexInf", "Flexibilidade inferior − (%) *", "text"], ["flexSup", "Flexibilidade superior + (%) *", "text"],
               ["sazoInf", "Sazonalização inferior − (%) *", "text"], ["sazoSup", "Sazonalização superior + (%) *", "text"],
             ] as [keyof FormCliente, string, string][]).map(([k, rotulo, tipo]) => (
@@ -525,6 +524,12 @@ export default function Home() {
                   onChange={(e) => setFormCli({ ...formCli, [k]: k === "cnpj" ? mascaraCnpj(e.target.value) : e.target.value })} />
               </div>
             ))}
+            <div>
+              <label htmlFor="cli-modalidade">Modalidade *</label>
+              <select id="cli-modalidade" value={formCli.modalidade} disabled={ocupado} onChange={(e) => setFormCli({ ...formCli, modalidade: e.target.value })}>
+                <option>Atacadista</option><option>Varejista</option>
+              </select>
+            </div>
             <div>
               <label htmlFor="cli-energia">Tipo de energia</label>
               <select id="cli-energia" value={formCli.energia} disabled={ocupado} onChange={(e) => setFormCli({ ...formCli, energia: e.target.value })}>
