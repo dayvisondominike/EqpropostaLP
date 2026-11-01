@@ -200,3 +200,7 @@ button.sec.perigo:hover:not(:disabled) { background: #fdecee; }
 .soltar .botao { display: inline-block; margin: 0; padding: 8px 16px; background: #fff; color: var(--verde); border: 1px solid var(--verde); }
 .soltar .botao:hover { background: var(--verde-claro); }
 .chip .nome-fornecedor { padding: 3px 8px; font-weight: 700; font-size: 15px; width: 100%; }
+
+.opcao-manual { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; cursor: pointer; }
+.opcao-manual input { width: auto; }
+.form-cliente { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }

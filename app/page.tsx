@@ -19,6 +19,59 @@ import {
 
 const CONCORRENCIA = 3;
 
+/** Dados do cliente digitados à mão quando não há o PDF do e-mail de cotação. */
+type FormCliente = {
+  razao: string; cnpj: string; modalidade: string; energia: string; submercado: string;
+  anoIni: string; anoFim: string; volume: string; flexInf: string; flexSup: string;
+  sazoInf: string; sazoSup: string; modulacao: "Flat" | "Carga";
+};
+
+const FORM_CLIENTE_VAZIO: FormCliente = {
+  razao: "", cnpj: "", modalidade: "", energia: "Incentivada 50%", submercado: SUBMERCADOS[1],
+  anoIni: "2027", anoFim: "2029", volume: "", flexInf: "30", flexSup: "30", sazoInf: "0", sazoSup: "0", modulacao: "Flat",
+};
+
+/** Máscara 00.000.000/0000-00 aplicada enquanto o usuário digita. */
+function mascaraCnpj(v: string) {
+  const d = v.replace(/\D/g, "").slice(0, 14);
+  return d
+    .replace(/^(\d{2})(\d)/, "$1.$2")
+    .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1/$2")
+    .replace(/(\d{4})(\d)/, "$1-$2");
+}
+
+const numeroBr =(v: string) => Number(v.replace(",", "."));
+
+/** Cliente no mesmo formato lido do PDF (textos que o motor sabe interpretar). */
+function clienteDoFormulario(f: FormCliente): Cliente {
+  const pct = (v: string) => `${numeroBr(v || "0")}%`;
+  const bilateral = (inf: string, sup: string) =>
+    numeroBr(inf || "0") === 0 && numeroBr(sup || "0") === 0 ? "Flat" : `-${pct(inf)} / +${pct(sup)}`;
+  return {
+    "Razão Social": f.razao.trim(),
+    CNPJ: f.cnpj.trim(),
+    Modalidade: f.modalidade.trim(),
+    "Tipo de Energia": f.energia,
+    Submercado: f.submercado,
+    Período: `01/01/${f.anoIni} a 31/12/${f.anoFim}`,
+    "Volume (MWm)": numeroBr(f.volume),
+    Flexibilidade: bilateral(f.flexInf, f.flexSup),
+    Sazo: bilateral(f.sazoInf, f.sazoSup),
+    Modulação: f.modulacao,
+    "Prazo de envio das propostas": null,
+    "Validade das propostas": null,
+  };
+}
+
+function formularioValido(f: FormCliente) {
+  const ini = Number(f.anoIni), fim = Number(f.anoFim);
+  const vol = numeroBr(f.volume);
+  return f.razao.trim() !== "" && f.cnpj.replace(/\D/g, "").length === 14 && f.modalidade.trim() !== "" && Number.isFinite(vol) && vol > 0 && f.volume.trim() !== "" &&
+    Number.isInteger(ini) && Number.isInteger(fim) && ini >= 2000 && fim >= ini && fim <= 2100 &&
+    [f.flexInf, f.flexSup, f.sazoInf, f.sazoSup].every((v) => v.trim() !== "" && Number.isFinite(numeroBr(v)) && numeroBr(v) >= 0);
+}
+
 const moeda = (v: number | null | undefined) =>
   v == null ? "—" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -42,6 +95,8 @@ function tagAderencia(status: string) {
 export default function Home() {
   const [email, setEmail] = useState<File | null>(null);
   const [urlEmail, setUrlEmail] = useState<string | null>(null);
+  const [manual, setManual] = useState(false);
+  const [formCli, setFormCli] = useState<FormCliente>(FORM_CLIENTE_VAZIO);
   const [arrastando, setArrastando] = useState(false);
   const [lendo, setLendo] = useState<{ nome: string; estado: "enviando" | "identificando" | "ok" | "erro"; detalhe: string }[]>([]);
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
@@ -77,6 +132,8 @@ export default function Home() {
   function novaEqualizacao() {
     setEmail(null);
     setUrlEmail(null);
+    setManual(false);
+    setFormCli(FORM_CLIENTE_VAZIO);
     setLendo([]);
     setFornecedores([]);
     setCliente(null);
@@ -222,15 +279,20 @@ export default function Home() {
   }
 
   async function processar() {
-    if (!email || fornecedores.length === 0) return;
+    if (!(manual ? formularioValido(formCli) : email) || fornecedores.length === 0) return;
     setOcupado(true);
     setErro("");
     setResultado(null);
     setProgresso(0);
     try {
-      setMensagem("Lendo o e-mail de cotação do cliente…");
-      const urlDoEmail = urlEmail ?? (await enviarPdf(email, "Caracteristicas_Produto"));
-      const resp = await extrairCliente(urlDoEmail);
+      let resp: { dados: Cliente };
+      if (manual) {
+        resp = { dados: clienteDoFormulario(formCli) };
+      } else {
+        setMensagem("Lendo o e-mail de cotação do cliente…");
+        const urlDoEmail = urlEmail ?? (await enviarPdf(email!, "Caracteristicas_Produto"));
+        resp = await extrairCliente(urlDoEmail);
+      }
       setCliente(resp.dados);
 
       const total = fornecedores.length;
@@ -437,9 +499,53 @@ export default function Home() {
 
       <div className="secao"><span className="num">1</span>E-mail de cotação do cliente</div>
       <div className="cartao">
-        <label htmlFor="email">PDF do e-mail (características do produto)</label>
-        {email && <p className="nota" style={{ margin: "0 0 8px" }}>Selecionado: <strong>{email.name}</strong></p>}
-        <input id="email" type="file" accept="application/pdf" disabled={ocupado} onChange={(e) => { setEmail(e.target.files?.[0] ?? null); setUrlEmail(null); }} />
+        <label className="opcao-manual">
+          <input type="checkbox" checked={manual} disabled={ocupado} onChange={(e) => setManual(e.target.checked)} />
+          Não tenho o PDF do e-mail de cotação — preencher os dados do cliente manualmente
+        </label>
+        {!manual ? (
+          <>
+            <label htmlFor="email">PDF do e-mail (características do produto)</label>
+            {email && <p className="nota" style={{ margin: "0 0 8px" }}>Selecionado: <strong>{email.name}</strong></p>}
+            <input id="email" type="file" accept="application/pdf" disabled={ocupado} onChange={(e) => { setEmail(e.target.files?.[0] ?? null); setUrlEmail(null); }} />
+          </>
+        ) : (
+          <div className="form-cliente">
+            {([
+              ["razao", "Razão Social *", "text"], ["cnpj", "CNPJ *", "text"], ["modalidade", "Modalidade *", "text"],
+              ["volume", "Volume (MWm) *", "text"], ["anoIni", "Ano inicial *", "number"], ["anoFim", "Ano final *", "number"],
+              ["flexInf", "Flexibilidade inferior − (%) *", "text"], ["flexSup", "Flexibilidade superior + (%) *", "text"],
+              ["sazoInf", "Sazonalização inferior − (%) *", "text"], ["sazoSup", "Sazonalização superior + (%) *", "text"],
+            ] as [keyof FormCliente, string, string][]).map(([k, rotulo, tipo]) => (
+              <div key={k}>
+                <label htmlFor={`cli-${k}`}>{rotulo}</label>
+                <input id={`cli-${k}`} type={tipo} value={formCli[k]} disabled={ocupado}
+                  inputMode={k === "cnpj" ? "numeric" : tipo === "text" && k !== "razao" && k !== "modalidade" ? "decimal" : undefined}
+                  placeholder={k === "cnpj" ? "00.000.000/0000-00" : undefined} maxLength={k === "cnpj" ? 18 : undefined}
+                  onChange={(e) => setFormCli({ ...formCli, [k]: k === "cnpj" ? mascaraCnpj(e.target.value) : e.target.value })} />
+              </div>
+            ))}
+            <div>
+              <label htmlFor="cli-energia">Tipo de energia</label>
+              <select id="cli-energia" value={formCli.energia} disabled={ocupado} onChange={(e) => setFormCli({ ...formCli, energia: e.target.value })}>
+                {["Convencional 0%", "Incentivada 50%", "Incentivada 100%"].map((o) => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="cli-sub">Submercado</label>
+              <select id="cli-sub" value={formCli.submercado} disabled={ocupado} onChange={(e) => setFormCli({ ...formCli, submercado: e.target.value })}>
+                {SUBMERCADOS.map((o) => <option key={o}>{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="cli-mod">Modulação</label>
+              <select id="cli-mod" value={formCli.modulacao} disabled={ocupado} onChange={(e) => setFormCli({ ...formCli, modulacao: e.target.value as "Flat" | "Carga" })}>
+                <option>Flat</option><option>Carga</option>
+              </select>
+            </div>
+            <p className="nota" style={{ gridColumn: "1 / -1", margin: 0 }}>Todos os campos são obrigatórios. Flexibilidade e sazonalização em 0% valem como Flat.</p>
+          </div>
+        )}
       </div>
 
       <div className="secao"><span className="num">2</span>Propostas dos fornecedores</div>
@@ -484,7 +590,7 @@ export default function Home() {
       </div>
 
       <div className="acao">
-        <button className="destaque" onClick={processar} disabled={ocupado || !email || fornecedores.length === 0}>
+        <button className="destaque" onClick={processar} disabled={ocupado || !(manual ? formularioValido(formCli) : email) || fornecedores.length === 0}>
           {ocupado ? "Processando…" : "▶ Processar equalização"}
         </button>
         {(ocupado || progresso > 0) && (
