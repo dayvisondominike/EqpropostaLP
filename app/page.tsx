@@ -513,8 +513,8 @@ export default function Home() {
           <div className="form-cliente">
             {([
               ["razao", "Razão Social *", "text"], ["cnpj", "CNPJ *", "text"],              ["volume", "Volume (MWm) *", "text"], ["anoIni", "Ano inicial *", "number"], ["anoFim", "Ano final *", "number"],
-              ["flexInf", "Flexibilidade inferior − (%) *", "text"], ["flexSup", "Flexibilidade superior + (%) *", "text"],
-              ["sazoInf", "Sazonalização inferior − (%) *", "text"], ["sazoSup", "Sazonalização superior + (%) *", "text"],
+              ["flexSup", "Flexibilidade superior + (%) *", "text"], ["flexInf", "Flexibilidade inferior − (%) *", "text"],
+              ["sazoSup", "Sazonalização superior + (%) *", "text"], ["sazoInf", "Sazonalização inferior − (%) *", "text"],
             ] as [keyof FormCliente, string, string][]).map(([k, rotulo, tipo]) => (
               <div key={k}>
                 <label htmlFor={`cli-${k}`}>{rotulo}</label>
