@@ -100,8 +100,11 @@ def main():
         primeiro_ano_col = col_letra_preco[anos_ordenados[0]]
         ultimo_ano_col = col_letra_preco[anos_ordenados[-1]]
 
-        # Preço Médio: média simples dos preços anuais informados na proposta
-        formula_media = f"=AVERAGE({primeiro_ano_col}{linha}:{ultimo_ano_col}{linha})"
+        # Preço Médio: soma(preço x MWh) / soma(MWh), com MWh = horas do ano (soma dos meses,
+        # 8.784 em bissexto) x volume; o volume se cancela, mas fica na fórmula para ser auditável.
+        mwh_anos = [f"{col_letra_volume}{linha}*{criar_planilha_equalizacao.horas_do_ano(ano)}" for ano in anos_ordenados]
+        faturamento = [f"{col_letra_preco[ano]}{linha}*{mwh}" for ano, mwh in zip(anos_ordenados, mwh_anos)]
+        formula_media = f"=IFERROR(({'+'.join(faturamento)})/({'+'.join(mwh_anos)}),0)"
         cel_media = ws.cell(row=linha, column=col_preco_medio, value=formula_media)
         cel_media.number_format = "#,##0.00"
 

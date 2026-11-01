@@ -6,6 +6,7 @@ Gera duas abas:
   - "Cliente": características do produto solicitado pelo cliente (etapa 4).
   - "Equalização": uma linha por fornecedor, nas colunas do modelo BID.
 """
+import calendar
 import re
 from pathlib import Path
 
@@ -134,6 +135,27 @@ def _anos_preco_disponiveis(row: pd.Series) -> list:
     return sorted(anos)
 
 
+def horas_do_ano(ano: int) -> int:
+    """Horas do ano, somando as horas de cada mês (24 h x dias do mês); 8.784 em ano bissexto."""
+    return sum(24 * calendar.monthrange(ano, mes)[1] for mes in range(1, 13))
+
+
+def calcular_preco_medio(precos_por_ano: dict, volume) -> float | None:
+    """Preço Médio ponderado pela energia (MWh) de cada mês: para cada mês, MWh = horas do mês
+    (24 x dias, com fevereiro de 29 dias em ano bissexto) x volume (MWm) e faturamento = preço x MWh;
+    Preço Médio = soma dos faturamentos / soma dos MWh. Anos sem preço (None/NaN) ficam de fora."""
+    volume = volume if volume and volume == volume else 1.0  # o volume se cancela; só pondera
+    total_mwh = faturamento = 0.0
+    for ano, preco in precos_por_ano.items():
+        if preco is None or preco != preco:
+            continue
+        for mes in range(1, 13):
+            mwh = 24 * calendar.monthrange(ano, mes)[1] * volume
+            total_mwh += mwh
+            faturamento += preco * mwh
+    return faturamento / total_mwh if total_mwh else None
+
+
 def _calcular_preco_medio_vpl(row: pd.Series):
     """Mesma fórmula usada nas fórmulas do Excel (etapa 3): serve aqui só
     para poder ORDENAR as propostas por VPL antes de escrevê-las na planilha."""
@@ -142,7 +164,7 @@ def _calcular_preco_medio_vpl(row: pd.Series):
         return None, None
     precos = [row[f"Preço {a} (R$/MWh)"] for a in anos]
     volume = row["Volume (MWm)"]
-    media = sum(precos) / len(precos)
+    media = calcular_preco_medio(dict(zip(anos, precos)), volume)
     vpl = sum(
         preco * volume * HORAS_POR_ANO / (1 + TMA) ** (ano - ANO_BASE)
         for ano, preco in zip(anos, precos)

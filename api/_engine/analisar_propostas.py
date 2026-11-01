@@ -108,7 +108,7 @@ def calcular_preco_medio_vpl(precos_por_ano: dict, volume: float):
     if not anos or volume is None:
         return None, None
     precos = [precos_por_ano[a] for a in anos]
-    media = sum(precos) / len(precos)
+    media = criar_planilha_equalizacao.calcular_preco_medio(dict(zip(anos, precos)), volume)
     vpl = sum(
         p * volume * HORAS_POR_ANO / (1 + TMA) ** (a - ANO_BASE)
         for a, p in zip(anos, precos)
