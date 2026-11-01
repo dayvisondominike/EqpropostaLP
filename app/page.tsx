@@ -1,6 +1,7 @@
 "use client";
 
 import MenuAbas from "./MenuAbas";
+import MemoriaCalculo from "./MemoriaCalculo";
 import { useEffect, useMemo, useState } from "react";
 import { lerSpreadSalvo } from "@/lib/ccee";
 import { gerarRelatorioPdf, type DadosMercado } from "@/lib/relatorio";
@@ -663,6 +664,8 @@ export default function Home() {
               </div>
             </div>
           )}
+
+          <MemoriaCalculo memoria={resultado.memoria} pesos={params.pesos ?? PESOS_PADRAO} />
 
           <div className="secao">Ranking da equalização</div>
           <div className="tabela-wrap">

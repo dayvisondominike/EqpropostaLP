@@ -65,8 +65,23 @@ export type LinhaRanking = {
   Observações: string;
 };
 
+export type CalculoAno = { ano: number; preco: number; horas: number; mwh: number; faturamento: number; fator: number; vpl: number };
+
+/** Log do cálculo de uma proposta; ausente em equalizações salvas antes dele existir. */
+export type MemoriaProposta = {
+  Fornecedor: string;
+  Rank: number | "-";
+  Pontuação: number | null;
+  pontos: Pesos | null;
+  calculo: {
+    volume: number; anos: CalculoAno[]; mwh: number; faturamento: number; media: number | null; vpl: number;
+    tma: number; ano_base: number; horas_vpl: number;
+  } | null;
+};
+
 export type Resultado = {
   ranking: LinhaRanking[];
+  memoria?: MemoriaProposta[];
   propostas: Record<string, string | number | null>[];
   cliente: Cliente;
   params: Params;

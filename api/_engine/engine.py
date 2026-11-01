@@ -291,6 +291,28 @@ def montar_ranking(df_propostas: pd.DataFrame, cliente: pd.Series) -> pd.DataFra
                "Aderente ao Produto", "Observações"]]
 
 
+def montar_memoria(df_propostas: pd.DataFrame) -> list:
+    """Log do cálculo de cada proposta (Preço Médio, VPL e pontos por critério), na ordem do rank."""
+    linhas = [(row, criar_planilha_equalizacao._calcular_preco_medio_vpl(row)) for _, row in df_propostas.iterrows()]
+    itens = [{"media": media, "vpl": vpl, "flexibilidade": row.get("Flexibilidade"),
+              "sazonalidade": row.get("Sazonalidade"), "modulacao": row.get("Modulação")}
+             for row, (media, vpl) in linhas]
+    ordem, pontos = criterio_rank.ordenar(itens)
+    detalhes = criterio_rank.detalhar(itens)
+    saida, rank = [], 0
+    for i in ordem:
+        row, _ = linhas[i]
+        if pontos[i] is not None:
+            rank += 1
+        saida.append({
+            "Fornecedor": row["Fornecedor"], "Rank": rank if pontos[i] is not None else "-",
+            "Pontuação": None if pontos[i] is None else round(pontos[i], 1),
+            "pontos": None if detalhes[i] is None else {k: round(v, 2) for k, v in detalhes[i].items()},
+            "calculo": criar_planilha_equalizacao.memoria_calculo(row),
+        })
+    return saida
+
+
 def _ajustar_cotacao_de_mercado(proposta: dict, cliente: dict, params: dict) -> dict:
     """Cotações semanais (planilha) não trazem submercado e listam todos os anos do mercado:
     assume o submercado do cliente e considera só os anos do período solicitado."""
@@ -344,6 +366,7 @@ def consolidar(propostas: list, cliente: dict, params: dict | None = None) -> di
     df_ranking = montar_ranking(df_prop_csv, pd.Series(cliente))
     return {
         "ranking": _json_seguro(df_ranking),
+        "memoria": _json_seguro(montar_memoria(df_prop_csv)),
         "propostas": _json_seguro(df_prop_csv),
         "cliente": _json_seguro(cliente),
         "params": p,

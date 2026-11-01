@@ -172,6 +172,29 @@ def _calcular_preco_medio_vpl(row: pd.Series):
     return media, vpl
 
 
+def memoria_calculo(row: pd.Series) -> dict | None:
+    """Log do cálculo do Preço Médio e do VPL de uma proposta, ano a ano (None se sem dados)."""
+    anos = [a for a in _anos_preco_disponiveis(row) if not pd.isna(row.get(f"Preço {a} (R$/MWh)"))]
+    if not anos or pd.isna(row.get("Volume (MWm)")):
+        return None
+    volume = float(row["Volume (MWm)"])
+    linhas = []
+    for ano in anos:
+        preco = float(row[f"Preço {ano} (R$/MWh)"])
+        horas = horas_do_ano(ano)
+        fator = (1 + TMA) ** (ano - ANO_BASE)
+        linhas.append({
+            "ano": ano, "preco": preco, "horas": horas, "mwh": horas * volume, "faturamento": preco * horas * volume,
+            "fator": fator, "vpl": preco * volume * HORAS_POR_ANO / fator,
+        })
+    return {
+        "volume": volume, "anos": linhas,
+        "mwh": sum(l["mwh"] for l in linhas), "faturamento": sum(l["faturamento"] for l in linhas),
+        "media": calcular_preco_medio({l["ano"]: l["preco"] for l in linhas}, volume),
+        "vpl": sum(l["vpl"] for l in linhas), "tma": TMA, "ano_base": ANO_BASE, "horas_vpl": HORAS_POR_ANO,
+    }
+
+
 def ordenar_propostas_por_rank(df_propostas: pd.DataFrame) -> pd.DataFrame:
     """Ordena as propostas pela pontuação do Rank (ver criterio_rank.py). Propostas
     sem dados (ex.: PDF inválido) vão para o final, mantendo a ordem original entre si."""

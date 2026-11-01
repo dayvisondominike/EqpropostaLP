@@ -204,3 +204,12 @@ button.sec.perigo:hover:not(:disabled) { background: #fdecee; }
 .opcao-manual { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; cursor: pointer; }
 .opcao-manual input { width: auto; }
 .form-cliente { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+
+.memoria { background: var(--cartao); border: 1px solid var(--borda); border-radius: 12px; box-shadow: var(--sombra); margin: 24px 0 8px; }
+.memoria > summary { cursor: pointer; padding: 14px 18px; font-weight: 700; color: var(--verde); }
+.memoria[open] > summary { border-bottom: 1px solid var(--borda); }
+.memoria-corpo { padding: 4px 18px 16px; }
+.memoria-corpo h3 { margin: 18px 0 6px; font-size: 15px; color: var(--verde); }
+.memoria-corpo p, .memoria-corpo li { font-size: 14px; line-height: 1.5; }
+.memoria-proposta { margin-top: 14px; }
+.memoria tr.total td { font-weight: 700; border-top: 2px solid var(--borda); }

@@ -107,31 +107,36 @@ def _posicao(valor: float, menor: float, maior: float) -> float:
     return 1.0 if maior == menor else (maior - valor) / (maior - menor)
 
 
-def pontuar(itens: list) -> list:
-    """Pontuação (0 a 100) de cada item; None para os sem dados. Cada item é um dict com
-    media, vpl, flexibilidade, sazonalidade e modulacao (media/vpl None = sem dados)."""
+def detalhar(itens: list) -> list:
+    """Pontos de cada item em cada critério (chaves de PESOS); None para os sem dados.
+    Cada item é um dict com media, vpl, flexibilidade, sazonalidade e modulacao (media/vpl None = sem dados)."""
     validos = [i for i in itens if i["vpl"] is not None]
     if not validos:
         return [None] * len(itens)
     medias = [i["media"] for i in validos]
     vpls = [i["vpl"] for i in validos]
-    pontos = []
+    detalhes = []
     for i in itens:
         if i["vpl"] is None:
-            pontos.append(None)
+            detalhes.append(None)
             continue
         flex_sup, flex_inf = _limites(i["flexibilidade"])
         sazo_sup, sazo_inf = _limites(i["sazonalidade"])
-        pontos.append(
-            PESOS["preco"] * _posicao(i["media"], min(medias), max(medias))
-            + PESOS["vpl"] * _posicao(i["vpl"], min(vpls), max(vpls))
-            + PESOS["flex_inferior"] * _nota_limite(flex_inf, analisar_propostas.FLEXIBILIDADE_INFERIOR_MINIMA)
-            + PESOS["flex_superior"] * _nota_limite(flex_sup, analisar_propostas.FLEXIBILIDADE_SUPERIOR_MINIMA)
-            + PESOS["sazo_inferior"] * _nota_limite(sazo_inf, analisar_propostas.SAZONALIZACAO_INFERIOR_MINIMA)
-            + PESOS["sazo_superior"] * _nota_limite(sazo_sup, analisar_propostas.SAZONALIZACAO_SUPERIOR_MINIMA)
-            + PESOS["modulacao"] * _atende_modulacao(i["modulacao"])
-        )
-    return pontos
+        detalhes.append({
+            "preco": PESOS["preco"] * _posicao(i["media"], min(medias), max(medias)),
+            "vpl": PESOS["vpl"] * _posicao(i["vpl"], min(vpls), max(vpls)),
+            "flex_inferior": PESOS["flex_inferior"] * _nota_limite(flex_inf, analisar_propostas.FLEXIBILIDADE_INFERIOR_MINIMA),
+            "flex_superior": PESOS["flex_superior"] * _nota_limite(flex_sup, analisar_propostas.FLEXIBILIDADE_SUPERIOR_MINIMA),
+            "sazo_inferior": PESOS["sazo_inferior"] * _nota_limite(sazo_inf, analisar_propostas.SAZONALIZACAO_INFERIOR_MINIMA),
+            "sazo_superior": PESOS["sazo_superior"] * _nota_limite(sazo_sup, analisar_propostas.SAZONALIZACAO_SUPERIOR_MINIMA),
+            "modulacao": PESOS["modulacao"] * _atende_modulacao(i["modulacao"]),
+        })
+    return detalhes
+
+
+def pontuar(itens: list) -> list:
+    """Pontuação (0 a 100) de cada item; None para os sem dados (ver detalhar)."""
+    return [None if d is None else sum(d.values()) for d in detalhar(itens)]
 
 
 def ordenar(itens: list) -> tuple:
