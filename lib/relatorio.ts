@@ -139,7 +139,7 @@ function capa(c: Contexto, lider: LinhaRanking | undefined) {
     doc.setTextColor(...VERDE);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
-    doc.text(`1º colocado: ${lider.Fornecedor}`, 32, 201);
+    doc.text(`1º colocado no RANK: ${lider.Fornecedor}`, 32, 201);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.text(`VPL ${moeda(lider["VPL (R$)"])}   ·   Preço médio ${moeda(lider["Preço Médio (R$/MWh)"])}/MWh`, 32, 208);
@@ -767,8 +767,8 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
     y += 4;
     const w4 = (util - 12) / 4;
     cartaoResumo(doc, MARGEM, y, w4, lider.Fornecedor, "1º COLOCADO NO RANK", true);
-    cartaoResumo(doc, MARGEM + (w4 + 4), y, w4, moeda(lider["VPL (R$)"]), "VPL DO 1º COLOCADO");
-    cartaoResumo(doc, MARGEM + 2 * (w4 + 4), y, w4, moeda(lider["Preço Médio (R$/MWh)"]), "PREÇO MÉDIO DO 1º COLOCADO");
+    cartaoResumo(doc, MARGEM + (w4 + 4), y, w4, moeda(lider["VPL (R$)"]), "VPL DO 1º COLOCADO NO RANK");
+    cartaoResumo(doc, MARGEM + 2 * (w4 + 4), y, w4, moeda(lider["Preço Médio (R$/MWh)"]), "PREÇO MÉDIO DO 1º COLOCADO NO RANK");
     cartaoResumo(doc, MARGEM + 3 * (w4 + 4), y, w4, String(ranking.length), "PROPOSTAS RECEBIDAS");
     y += 31;
   }
@@ -796,7 +796,7 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.5);
     doc.setTextColor(...VERDE);
-    doc.text(cortarTexto(doc, `Curva de preço — ${lider!.Fornecedor} (R$/MWh)`, wCart - 8), MARGEM + 4, y + 10);
+    doc.text(cortarTexto(doc, `Curva de preço do 1º no RANK — ${lider!.Fornecedor}`, wCart - 8), MARGEM + 4, y + 10);
     colunasPorAno(doc, MARGEM + 6, y + 16, wCart - 12, Math.min(40, hCart - 28), precos);
   }
   cartaoBase(doc, xDir, y, wCart, hCart, VERDE);

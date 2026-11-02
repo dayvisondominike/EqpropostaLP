@@ -446,7 +446,7 @@ export default function Home() {
         <div className="tabela-wrap">
           <table>
             <thead>
-              <tr><th>Cliente</th><th>CNPJ</th><th>Submercado</th><th>Período</th><th>1º colocado</th><th>Propostas</th><th>Atualizada em</th><th></th></tr>
+              <tr><th>Cliente</th><th>CNPJ</th><th>Submercado</th><th>Período</th><th>1º colocado no rank</th><th>Propostas</th><th>Atualizada em</th><th></th></tr>
             </thead>
             <tbody>
               {existentes.map((e) => (
@@ -627,15 +627,15 @@ export default function Home() {
           <div className="secao">Resumo</div>
           <div className="metricas">
             <div className="metrica"><div className="valor">{lider.Fornecedor}</div><div className="rotulo">1º COLOCADO NO RANK</div></div>
-            <div className="metrica"><div className="valor">{moeda(lider["VPL (R$)"])}</div><div className="rotulo">VPL DO 1º COLOCADO</div></div>
-            <div className="metrica"><div className="valor">{moeda(lider["Preço Médio (R$/MWh)"])}</div><div className="rotulo">PREÇO MÉDIO DO 1º COLOCADO</div></div>
+            <div className="metrica"><div className="valor">{moeda(lider["VPL (R$)"])}</div><div className="rotulo">VPL DO 1º COLOCADO NO RANK</div></div>
+            <div className="metrica"><div className="valor">{moeda(lider["Preço Médio (R$/MWh)"])}</div><div className="rotulo">PREÇO MÉDIO DO 1º COLOCADO NO RANK</div></div>
             <div className="metrica"><div className="valor">{resultado.ranking.length}</div><div className="rotulo">PROPOSTAS RECEBIDAS</div></div>
           </div>
 
           {precosLider.length > 0 && (
             <div className="grafico">
               <div className="cartao">
-                <h3>Curva de preço — {lider.Fornecedor} (R$/MWh)</h3>
+                <h3>Curva de preço do 1º no RANK — {lider.Fornecedor} (R$/MWh)</h3>
                 <svg viewBox={`0 0 ${precosLider.length * 100} 130`} width="100%" style={{ maxHeight: 200 }} role="img" aria-label="Preço por ano do primeiro colocado">
                   {precosLider.map((p, i) => {
                     const h = (p.preco / maxPreco) * 80;
