@@ -1,7 +1,7 @@
 import type { jsPDF } from "jspdf";
 import { LOGO_30_ANOS, LOGO_30_ANOS_PROPORCAO } from "./logo30";
 import type { DadosPld } from "./ccee";
-import type { LinhaRanking, Resultado } from "./types";
+import type { LinhaRanking, Pesos, Resultado } from "./types";
 
 type RGB = [number, number, number];
 
@@ -279,6 +279,72 @@ function barrasCartao(
     doc.text(formatar(it.valor), xBarra + largura - 1.8, yy + altBarra / 2 + 1, { align: "right" });
   });
   return itens.length * passo;
+}
+
+const CRITERIOS_PONTOS: { rotulo: string; chaves: (keyof Pesos)[]; cor: RGB }[] = [
+  { rotulo: "Preço médio", chaves: ["preco"], cor: VERDE },
+  { rotulo: "VPL", chaves: ["vpl"], cor: [76, 140, 166] },
+  { rotulo: "Flexibilidade", chaves: ["flex_inferior", "flex_superior"], cor: VERDE_SUAVE },
+  { rotulo: "Sazonalização", chaves: ["sazo_inferior", "sazo_superior"], cor: AMARELO },
+  { rotulo: "Modulação", chaves: ["modulacao"], cor: [160, 175, 172] },
+];
+
+/** Barras empilhadas da pontuação (0 a 100) por critério, com legenda no topo e o total ao fim da barra. */
+function barrasPontuacao(
+  doc: jsPDF,
+  x: number,
+  y: number,
+  w: number,
+  itens: { nome: string; lider: boolean; pontos: Pesos; total: number }[],
+  nomeW: number,
+  passo: number,
+  alturaLegenda: number,
+) {
+  // Legenda
+  let xl = x + nomeW + 2;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.6);
+  CRITERIOS_PONTOS.forEach((cr) => {
+    doc.setFillColor(...cr.cor);
+    doc.roundedRect(xl, y + 0.4, 3, 3, 0.6, 0.6, "F");
+    doc.setTextColor(...CINZA);
+    doc.text(cr.rotulo, xl + 4.2, y + 3);
+    xl += 4.2 + doc.getTextWidth(cr.rotulo) + 5;
+  });
+
+  const xBarra = x + nomeW + 2;
+  const wTotal = 11;
+  const wMax = x + w - xBarra - wTotal;
+  const altBarra = Math.min(5, passo - 1.2);
+  const y0 = y + alturaLegenda;
+  itens.forEach((it, i) => {
+    const yy = y0 + i * passo;
+    doc.setFont("helvetica", it.lider ? "bold" : "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(...CINZA);
+    doc.text(cortarTexto(doc, it.nome, nomeW), x + nomeW, yy + altBarra / 2 + 1.1, { align: "right" });
+    doc.setFillColor(...VERDE_CLARO);
+    doc.roundedRect(xBarra, yy, wMax, altBarra, 1.2, 1.2, "F");
+    let xs = xBarra;
+    CRITERIOS_PONTOS.forEach((cr) => {
+      const pts = cr.chaves.reduce((s, k) => s + it.pontos[k], 0);
+      const largura = (pts / 100) * wMax;
+      if (largura <= 0.05) return;
+      doc.setFillColor(...cr.cor);
+      doc.rect(xs, yy, largura, altBarra, "F");
+      if (largura > 7) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(6);
+        doc.setTextColor(255, 255, 255);
+        doc.text(pts.toLocaleString("pt-BR", { maximumFractionDigits: 0 }), xs + largura / 2, yy + altBarra / 2 + 0.9, { align: "center" });
+      }
+      xs += largura;
+    });
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7);
+    doc.setTextColor(...(it.lider ? VERDE : CINZA));
+    doc.text(it.total.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }), xBarra + wMax + 2, yy + altBarra / 2 + 1.1);
+  });
 }
 
 type Item = { rotulo: string; valor: string; destaque?: boolean; colunas?: number };
@@ -741,9 +807,35 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
   barrasCartao(doc, xDir + 4, y + topoBarras - 1, wCart - 8, itensPreco, num2, duplo ? 33 : 45, passoPreco);
   y += hCart + 6;
 
-  // VPL por proposta (menor é melhor), em cartão de largura total; vai para a página seguinte se não couber.
+  // Pontuação por proposta (0 a 100), empilhada por critério, em cartão de largura total; vai para a página seguinte se não couber.
+  // Equalizações salvas antes do log de cálculo não têm os pontos por critério e mostram o VPL.
+  const comPontos = (resultado.memoria ?? []).filter((m) => m.pontos != null && m.Pontuação != null);
   const comVpl = ranking.filter((r) => r["VPL (R$)"] != null);
-  if (comVpl.length > 0) {
+  if (comPontos.length > 0) {
+    const topoPont = 21;
+    const passoPont = Math.max(3.8, Math.min(5.6, (alt - 16 - y - topoPont - 4) / comPontos.length));
+    const hPont = topoPont + comPontos.length * passoPont + 4;
+    if (y + hPont > alt - 16) {
+      doc.addPage();
+      cabecalhoPagina(c, "Resultado", "Pontuação por Proposta");
+      y = 46;
+    }
+    cartaoBase(doc, MARGEM, y, util, hPont, VERDE);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...VERDE);
+    doc.text("Pontuação por proposta (0 a 100) — por critério", MARGEM + 4, y + 10);
+    barrasPontuacao(
+      doc,
+      MARGEM + 4,
+      y + 13,
+      util - 8,
+      comPontos.map((m) => ({ nome: m.Fornecedor, lider: m.Rank === lider?.Rank, pontos: m.pontos!, total: m.Pontuação! })),
+      45,
+      passoPont,
+      topoPont - 14,
+    );
+  } else if (comVpl.length > 0) {
     // Reduz o espaçamento para o VPL caber na mesma página quando possível.
     const passoVpl = Math.max(3.8, Math.min(5.6, (alt - 16 - y - topoBarras - 4) / comVpl.length));
     const hVpl = topoBarras + comVpl.length * passoVpl + 4;
