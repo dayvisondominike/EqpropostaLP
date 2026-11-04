@@ -351,7 +351,7 @@ export default function Home() {
   }
 
   async function recalcular() {
-    if (!cliente || !params || pesosInvalidos) return;
+    if (!cliente || !params || pesosInvalidos || periodoInvalido) return;
     setOcupado(true);
     setErro("");
     try {
@@ -407,6 +407,7 @@ export default function Home() {
   const somaPesos = params ? Object.values(params.pesos ?? PESOS_PADRAO).reduce((a, b) => a + b, 0) : 0;
   const pesosInvalidos = Math.abs(somaPesos - 100) > 0.05;
   const num = (v: string) => (v === "" ? 0 : Number(v));
+  const periodoInvalido = !!params && !(params.ano_inicio > 0 && params.ano_fim >= params.ano_inicio);
 
   return (
     <>
@@ -749,8 +750,14 @@ export default function Home() {
                 </div>
               ))}
             </div>
+            {periodoInvalido && (
+              <div className="alerta-pesos" role="alert" style={{ marginTop: 12 }}>
+                ⚠ O período é inválido: o fim ({params.ano_fim}) não pode ser menor que o início ({params.ano_inicio}).
+                Corrija os anos — enquanto isso, o recálculo fica bloqueado.
+              </div>
+            )}
             <div style={{ marginTop: 12 }}>
-              <button className="sec" onClick={recalcular} disabled={ocupado || pesosInvalidos} title={pesosInvalidos ? "Corrija os pesos: a soma precisa ser exatamente 100" : undefined}>↻ Recalcular com estes parâmetros</button>
+              <button className="sec" onClick={recalcular} disabled={ocupado || pesosInvalidos || periodoInvalido} title={pesosInvalidos ? "Corrija os pesos: a soma precisa ser exatamente 100" : periodoInvalido ? "Corrija o período: o fim não pode ser menor que o início" : undefined}>↻ Recalcular com estes parâmetros</button>
               <button className="sec" style={{ marginLeft: 8 }} onClick={() => setP("pesos", { ...PESOS_PADRAO })} disabled={ocupado}>Restaurar pesos padrão</button>
             </div>
           </div>
