@@ -789,7 +789,9 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
   const xDir = duplo ? MARGEM + wCart + 4 : MARGEM;
   const topoBarras = 15;
   const passoPreco = Math.max(3.8, Math.min(6.4, (alt - 16 - y - topoBarras - 4) / Math.max(1, itensPreco.length)));
-  const hCart = topoBarras + itensPreco.length * passoPreco + 4;
+  // Altura mínima para o gráfico de colunas da curva não ficar achatado quando há poucas propostas (limitada ao espaço da página).
+  const hMinCurva = duplo ? Math.min(56, alt - 16 - y - 4) : 0;
+  const hCart = Math.max(topoBarras + itensPreco.length * passoPreco + 4, hMinCurva);
 
   if (duplo) {
     cartaoBase(doc, MARGEM, y, wCart, hCart, VERDE);
