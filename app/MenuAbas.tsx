@@ -7,11 +7,18 @@ const icone = (d: ReactNode) => (
   </svg>
 );
 
-const ABAS: { href: "/" | "/pld"; rotulo: string; icone: ReactNode }[] = [
+type Rota = "/" | "/comparativo" | "/pld";
+
+const ABAS: { href: Rota; rotulo: string; icone: ReactNode }[] = [
   {
     href: "/",
     rotulo: "Equalização de propostas",
     icone: icone(<><path d="M4 20V10" /><path d="M10 20V4" /><path d="M16 20v-7" /><path d="M22 20H2" /></>),
+  },
+  {
+    href: "/comparativo",
+    rotulo: "Comparar 1º × 2º do RANK",
+    icone: icone(<><path d="M12 3v18" /><path d="M5 7h14" /><path d="M5 7l-3 7a3 3 0 0 0 6 0z" /><path d="M19 7l-3 7a3 3 0 0 0 6 0z" /></>),
   },
   {
     href: "/pld",
@@ -20,7 +27,7 @@ const ABAS: { href: "/" | "/pld"; rotulo: string; icone: ReactNode }[] = [
   },
 ];
 
-export default function MenuAbas({ ativa }: { ativa: "/" | "/pld" }) {
+export default function MenuAbas({ ativa }: { ativa: Rota }) {
   return (
     <nav className="menu-abas" aria-label="Seções do app">
       <div className="menu-abas-interno">

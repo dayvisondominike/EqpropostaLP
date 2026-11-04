@@ -213,3 +213,9 @@ button.sec.perigo:hover:not(:disabled) { background: #fdecee; }
 .memoria-corpo p, .memoria-corpo li { font-size: 14px; line-height: 1.5; }
 .memoria-proposta { margin-top: 14px; }
 .memoria tr.total td { font-weight: 700; border-top: 2px solid var(--borda); }
+
+.destaque-resumo { background: var(--amarelo-claro, #fff4d9); border-left: 6px solid var(--amarelo); }
+tr.difere td { background: #fff8e1; }
+tr.total td { font-weight: 700; border-top: 2px solid var(--borda); }
+ol.atencao { margin: 0; padding-left: 20px; line-height: 1.6; }
+ol.atencao li { margin-bottom: 6px; }
