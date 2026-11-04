@@ -595,7 +595,7 @@ function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lid
   }
 
   // Gráfico
-  const gx = MARGEM + 11, gw = larg - MARGEM - gx - 2;
+  const gx = MARGEM + 11, gw = larg - MARGEM - gx - 2 - 26; // 26 mm reservados à direita para o rótulo da média i5 Spot
   const gy = 100, gh = 108;
   const maxV = Math.max(...pontos.flatMap((p) => [p.i5, p.pld]), lider?.["Preço Médio (R$/MWh)"] ?? 0, 50);
   const bruto = maxV / 6;
@@ -648,6 +648,20 @@ function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lid
     doc.text(`Proposta vencedora (${lider.Fornecedor}): ${num2(refPreco)}`, gx + gw, py(refPreco) - 1.4, { align: "right" });
   }
 
+  // Linha da média i5 Spot do período (mesma da tela)
+  doc.setDrawColor(...VERDE);
+  doc.setLineWidth(0.4);
+  doc.setLineDashPattern([0.4, 1.6], 0);
+  doc.line(gx, py(mediaI5), gx + gw + 2, py(mediaI5));
+  doc.setLineDashPattern([], 0);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(6.3);
+  doc.setTextColor(...CINZA);
+  doc.text("Média i5 Spot", gx + gw + 3.5, py(mediaI5) - 0.8);
+  doc.setFontSize(7.8);
+  doc.setTextColor(...VERDE);
+  doc.text(moeda(mediaI5), gx + gw + 3.5, py(mediaI5) + 3.6);
+
   // Curvas
   const sPld = pontos.map((p, i) => ({ x: px(i), y: py(p.pld) }));
   const sI5 = pontos.map((p, i) => ({ x: px(i), y: py(p.i5) }));
@@ -691,13 +705,20 @@ function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lid
   doc.line(MARGEM + 62, ly, MARGEM + 70, ly);
   doc.setLineDashPattern([], 0);
   doc.text("PLD médio mensal", MARGEM + 72, ly + 1);
+  doc.setLineDashPattern([], 0);
+  doc.setDrawColor(...VERDE);
+  doc.setLineWidth(0.4);
+  doc.setLineDashPattern([0.4, 1.6], 0);
+  doc.line(MARGEM + 100, ly, MARGEM + 108, ly);
+  doc.setLineDashPattern([], 0);
+  doc.text("Média i5 Spot", MARGEM + 110, ly + 1);
   if (lider && refPreco != null) {
     doc.setDrawColor(...AZUL);
     doc.setLineWidth(0.5);
     doc.setLineDashPattern([0.8, 1.4], 0);
-    doc.line(MARGEM + 108, ly, MARGEM + 116, ly);
+    doc.line(MARGEM + 134, ly, MARGEM + 142, ly);
     doc.setLineDashPattern([], 0);
-    doc.text("Preço médio da proposta vencedora", MARGEM + 118, ly + 1);
+    doc.text("Média da proposta vencedora", MARGEM + 144, ly + 1);
   }
 
   // Leitura do resultado

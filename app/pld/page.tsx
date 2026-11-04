@@ -50,7 +50,7 @@ function passoBonito(max: number) {
 type Ponto = { mes: string; i5?: number; pld?: number };
 
 function Grafico({ pontos, titulo }: { pontos: Ponto[]; titulo: string }) {
-  const L = 1000, A = 400, ml = 54, mr = 20, mt = 36, mb = 44;
+  const L = 1000, A = 400, ml = 54, mr = 104, mt = 36, mb = 44;
   const [ativo, setAtivo] = useState<number | null>(null);
   const valores = pontos.flatMap((p) => [p.i5, p.pld]).filter((v): v is number => v != null);
   const passo = passoBonito(Math.max(50, ...valores));
@@ -60,6 +60,7 @@ function Grafico({ pontos, titulo }: { pontos: Ponto[]; titulo: string }) {
   const serie = (k: "i5" | "pld") =>
     pontos.map((p, i) => (p[k] != null ? { x: x(i), y: y(p[k] as number), i, v: p[k] as number } : null)).filter((p): p is NonNullable<typeof p> => p !== null);
   const sI5 = serie("i5"), sPld = serie("pld");
+  const mediaI5 = sI5.length > 0 ? sI5.reduce((a, p) => a + p.v, 0) / sI5.length : null;
   const pulo = Math.ceil(pontos.length / 22);
   const ticks = Array.from({ length: Math.floor(topo / passo) + 1 }, (_, i) => i * passo);
 
@@ -85,6 +86,13 @@ function Grafico({ pontos, titulo }: { pontos: Ponto[]; titulo: string }) {
         {pontos.map((p, i) => (i % pulo === 0 ? <text key={p.mes} x={x(i)} y={A - mb + 18} textAnchor="middle" fontSize={11} fontWeight={700} fill="#1f2d2b">{rotuloMes(p.mes)}</text> : null))}
 
         {ativo != null && <line x1={x(ativo)} x2={x(ativo)} y1={mt} y2={A - mb} stroke="#01625c" strokeOpacity={0.25} />}
+        {mediaI5 != null && (
+          <g>
+            <line x1={ml} x2={L - mr + 6} y1={y(mediaI5)} y2={y(mediaI5)} stroke="#01625c" strokeWidth={1.6} strokeDasharray="2 5" strokeLinecap="round" />
+            <text x={L - mr + 10} y={y(mediaI5) - 2} fontSize={10.5} fontWeight={700} fill="#5f6f6c">Média i5 Spot</text>
+            <text x={L - mr + 10} y={y(mediaI5) + 12} fontSize={12.5} fontWeight={800} fill="#01625c">{moeda(mediaI5)}</text>
+          </g>
+        )}
         <path d={caminhoSuave(sPld)} fill="none" stroke="#f8b026" strokeWidth={2.6} strokeDasharray="7 5" />
         <path d={caminhoSuave(sI5)} fill="none" stroke="#01625c" strokeWidth={3} />
 
@@ -113,6 +121,7 @@ function Grafico({ pontos, titulo }: { pontos: Ponto[]; titulo: string }) {
       <div className="legenda">
         <span><i className="l-i5" /> Energia i5 Spot (preço médio comprado no curto prazo)</span>
         <span><i className="l-pld" /> PLD médio mensal</span>
+        <span><i className="l-media" /> Média i5 Spot do período</span>
       </div>
     </div>
   );

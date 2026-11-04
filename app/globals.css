@@ -170,6 +170,7 @@ tr.lider .rank { background: var(--amarelo); }
 .legenda i { display: inline-block; width: 28px; height: 0; vertical-align: middle; margin-right: 8px; }
 .legenda .l-i5 { border-top: 3px solid var(--verde); }
 .legenda .l-pld { border-top: 3px dashed var(--amarelo); }
+.legenda .l-media { border-top: 2px dotted var(--verde); }
 .campo-spread { width: 170px; font-weight: 700; color: var(--verde); }
 /* Em telas largas, os filtros e o spread ficam todos na mesma linha. */
 .pld-barra { gap: 14px 18px; }
