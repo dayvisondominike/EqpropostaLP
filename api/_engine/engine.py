@@ -19,6 +19,7 @@ import re
 import sys
 import tempfile
 import urllib.request
+from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -99,9 +100,11 @@ def extrair_fornecedor(nome: str, urls: list) -> dict:
                 nome_arq += ".pdf"
             pdfs.append(_baixar(url, pasta / nome_arq))
 
-        dados = extrair_llm.extrair_proposta_llm(sorted(pdfs), nome)
+        lista = extrair_llm.extrair_propostas_llm(sorted(pdfs), nome)
+        dados = lista[0] if lista else None
         origem = "LLM"
         if dados is None:
+            lista = None
             origem = "Regex"
             entrada = extrair_dados_pdfs.PARSERS.get(nome)
             if entrada is not None:
@@ -119,7 +122,11 @@ def extrair_fornecedor(nome: str, urls: list) -> dict:
                 "Data Base": None, "Data da Proposta": None,
                 "Validade da Proposta": "Extração indisponível (LLM e regex falharam) - sem dados para equalizar",
             }
-        return {"pasta": nome, "origem": origem, "eventos": list(extrair_llm.EVENTOS), "dados": _json_seguro(dados)}
+        resposta = {"pasta": nome, "origem": origem, "eventos": list(extrair_llm.EVENTOS), "dados": _json_seguro(dados)}
+        if lista and len(lista) > 1:
+            # Vários produtos no mesmo PDF: uma proposta por produto (a escolha por período e data é feita em consolidar).
+            resposta["opcoes"] = _json_seguro(lista)
+        return resposta
 
 
 def extrair_cliente(url: str) -> dict:
@@ -329,13 +336,102 @@ def _ajustar_cotacao_de_mercado(proposta: dict, cliente: dict, params: dict) -> 
     return proposta
 
 
+def _data_da_proposta(proposta: dict):
+    """Data de emissão da proposta (DD/MM/AAAA, ou a data base como alternativa); None se não houver."""
+    for chave in ("Data da Proposta", "Data Base"):
+        m = re.search(r"(\d{1,2})/(\d{1,2})/(\d{4})", str(proposta.get(chave) or ""))
+        if m:
+            try:
+                return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+            except ValueError:
+                continue
+    return None
+
+
+def _meses_cobertos(proposta: dict) -> set:
+    """Meses (ano, mês) que o produto fornece: do texto do "Período" (DD/MM/AAAA a DD/MM/AAAA), limitados aos
+    anos com preço; sem datas legíveis, os anos inteiros que têm preço."""
+    anos = {int(a) for a in (proposta.get("Preços por ano") or {})}
+    datas = re.findall(r"(\d{1,2})/(\d{1,2})/(\d{4})", str(proposta.get("Período") or ""))
+    if len(datas) >= 2:
+        (_, m1, a1), (_, m2, a2) = datas[0], datas[-1]
+        a1, m1, a2, m2 = int(a1), int(m1), int(a2), int(m2)
+        meses = {(a, m) for a in range(a1, a2 + 1) for m in range(1, 13) if (a, m) >= (a1, m1) and (a, m) <= (a2, m2)}
+        return {(a, m) for a, m in meses if a in anos}
+    return {(a, m) for a in anos for m in range(1, 13)}
+
+
+def _escolher_opcoes(propostas: list, params: dict):
+    """Quando um fornecedor traz vários produtos no mesmo PDF (uma proposta por produto, com a chave "Produto"),
+    usa só um deles em cada equalização: o que cobre o período pedido (ano_inicio a ano_fim) e, entre os que
+    cobrem, o de data mais recente. Se nenhum cobrir o período inteiro, vale o que cobre mais anos dele.
+    Devolve (propostas escolhidas, resumo das escolhas para mostrar na tela)."""
+    grupos: dict = {}
+    for i, l in enumerate(propostas):
+        if l.get("Produto"):
+            grupos.setdefault(str(l.get("Fornecedor")), []).append(i)
+    if not any(len(ix) > 1 for ix in grupos.values()):
+        return propostas, []
+
+    periodo = {(a, m) for a in range(int(params["ano_inicio"]), int(params["ano_fim"]) + 1) for m in range(1, 13)}
+    descartar, escolhas = set(), []
+    for nome, indices in grupos.items():
+        if len(indices) < 2:
+            continue
+
+        def chave(i):
+            meses = _meses_cobertos(propostas[i])
+            data = _data_da_proposta(propostas[i])
+            return (-len(meses & periodo), -(data.toordinal() if data else 0), len(meses - periodo), i)
+
+        ordem = sorted(indices, key=chave)
+        escolhida = ordem[0]
+        cobre = periodo <= _meses_cobertos(propostas[escolhida])
+        data_esc = _data_da_proposta(propostas[escolhida])
+        escolhas.append({
+            "Fornecedor": nome,
+            "Usada": propostas[escolhida]["Produto"],
+            "Data": data_esc.strftime("%d/%m/%Y") if data_esc else None,
+            "Cobre o período": cobre,
+            "Ignoradas": [
+                {"Produto": propostas[i]["Produto"],
+                 "Data": (_data_da_proposta(propostas[i]).strftime("%d/%m/%Y") if _data_da_proposta(propostas[i]) else None)}
+                for i in ordem[1:]
+            ],
+        })
+        descartar.update(ordem[1:])
+    saida = []
+    for i, l in enumerate(propostas):
+        if i in descartar:
+            continue
+        if l.get("Produto") and len(grupos.get(str(l.get("Fornecedor")), [])) > 1:
+            l = dict(l)
+            l["Fornecedor"] = f'{l["Fornecedor"]} - {l["Produto"]}'
+        saida.append(l)
+    return saida, escolhas
+
+
+def _limitar_ao_periodo(proposta: dict, params: dict) -> dict:
+    """Preço Médio e VPL consideram só os anos do período da equalização (ano_inicio a ano_fim).
+    Anos de preço fora do período são ignorados no cálculo; se nenhum ano cair dentro, mantém tudo
+    (a proposta fica não aderente pelo critério de período)."""
+    precos = {int(a): v for a, v in (proposta.get("Preços por ano") or {}).items()}
+    dentro = {a: v for a, v in precos.items() if params["ano_inicio"] <= a <= params["ano_fim"]}
+    if not dentro or len(dentro) == len(precos):
+        return proposta
+    proposta = dict(proposta)
+    proposta["Preços por ano"] = {str(a): v for a, v in sorted(dentro.items())}
+    return proposta
+
+
 def consolidar(propostas: list, cliente: dict, params: dict | None = None) -> dict:
     if not propostas:
         raise ValueError("Nenhuma proposta recebida.")
     p = {**parametros_do_cliente(cliente), **(params or {})}
     _aplicar_parametros(p)
 
-    propostas = [_ajustar_cotacao_de_mercado(l, cliente, p) for l in propostas]
+    propostas, escolhas = _escolher_opcoes(propostas, p)
+    propostas = [_limitar_ao_periodo(_ajustar_cotacao_de_mercado(l, cliente, p), p) for l in propostas]
     df_propostas = _montar_dataframe(propostas)
     df_cliente = pd.DataFrame([cliente])
 
@@ -370,6 +466,7 @@ def consolidar(propostas: list, cliente: dict, params: dict | None = None) -> di
         "propostas": _json_seguro(df_prop_csv),
         "cliente": _json_seguro(cliente),
         "params": p,
+        "opcoes": escolhas,
         "xlsx": {"nome": nome_arquivo, "base64": xlsx_b64},
     }
 

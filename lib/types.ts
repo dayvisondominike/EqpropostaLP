@@ -79,9 +79,19 @@ export type MemoriaProposta = {
   } | null;
 };
 
+export type EscolhaOpcao = {
+  Fornecedor: string;
+  Usada: string;
+  Data: string | null;
+  "Cobre o período": boolean;
+  Ignoradas: { Produto: string; Data: string | null }[];
+};
+
 export type Resultado = {
   ranking: LinhaRanking[];
   memoria?: MemoriaProposta[];
+  /** Fornecedores com vários produtos no mesmo PDF: qual foi usado (período e data mais recente) e quais foram ignorados. */
+  opcoes?: EscolhaOpcao[];
   propostas: Record<string, string | number | null>[];
   cliente: Cliente;
   params: Params;

@@ -53,6 +53,8 @@ export type RespostaFornecedor = {
   origem: string;
   eventos: Record<string, string>[];
   dados: Proposta;
+  /** Presente quando o PDF traz mais de um produto: uma proposta por produto (com "Produto" e a data de cada um). */
+  opcoes?: Proposta[];
 };
 
 export const extrairFornecedor = (fornecedor: string, urls: string[]) =>

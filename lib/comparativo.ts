@@ -104,7 +104,7 @@ export function comparar(resultado: Resultado, a: MemoriaProposta, b: MemoriaPro
   const anosBarata = anos.filter((x) => (maisBarataA ? x.precoA <= x.precoB : x.precoB <= x.precoA)).length;
   const frasePreco = difValor < 0.005
     ? `As duas propostas têm o mesmo valor no período.`
-    : `A ${barata} é mais barata em ${anosBarata === anos.length ? `todos os ${anos.length} anos` : `${anosBarata} de ${anos.length} anos`}, com cerca de ${reais(difValor)} a menos (−${n(pctDif, 1)}%) no período.`;
+    : `A ${barata} é mais barata ${anosBarata === anos.length ? (anos.length === 1 ? `em ${anos[0].ano}` : `em todos os ${anos.length} anos`) : `em ${anosBarata} de ${anos.length} anos`}, com cerca de ${reais(difValor)} a menos (−${n(pctDif, 1)}%) no período.`;
 
   // Pontos por critério.
   const pontos = (Object.keys(ROTULOS) as (keyof Pesos)[]).map((k) => ({

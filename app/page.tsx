@@ -298,7 +298,7 @@ export default function Home() {
 
       const total = fornecedores.length;
       let feitos = 0;
-      const coletadas: (Proposta | undefined)[] = new Array(total);
+      const coletadas: (Proposta[] | undefined)[] = new Array(total);
       let proximo = 0;
 
       async function trabalhador() {
@@ -308,7 +308,7 @@ export default function Home() {
           atualizar(f.id, { estado: "processando", detalhe: "enviando PDFs…" });
           try {
             if (f.proposta) {
-              coletadas[i] = { ...f.proposta, Fornecedor: f.nome.toUpperCase() };
+              coletadas[i] = [{ ...f.proposta, Fornecedor: f.nome.toUpperCase() }];
               atualizar(f.id, { estado: "concluido", detalhe: "cotação da planilha" });
               feitos++;
               setProgresso(Math.round((feitos / total) * 90));
@@ -318,8 +318,9 @@ export default function Home() {
             const urls = f.urls ?? (await Promise.all(f.arquivos.map((a) => enviarPdf(a, f.nome))));
             atualizar(f.id, { detalhe: "extraindo dados…" });
             const r = await extrairFornecedor(f.nome, urls);
-            coletadas[i] = r.dados;
-            atualizar(f.id, { estado: "concluido", detalhe: r.origem });
+            // PDF com vários produtos (ex.: 1S/2027, 2027, 2027 a 2029): uma proposta por produto.
+            coletadas[i] = r.opcoes && r.opcoes.length > 1 ? r.opcoes : [r.dados];
+            atualizar(f.id, { estado: "concluido", detalhe: r.opcoes && r.opcoes.length > 1 ? `${r.origem} · ${r.opcoes.length} produtos` : r.origem });
           } catch (e) {
             atualizar(f.id, { estado: "erro", detalhe: (e as Error).message });
           }
@@ -330,7 +331,7 @@ export default function Home() {
       }
       await Promise.all(Array.from({ length: Math.min(CONCORRENCIA, total) }, trabalhador));
 
-      const validas = coletadas.filter((p): p is Proposta => p !== undefined);
+      const validas = coletadas.flatMap((p) => p ?? []);
       if (validas.length === 0) throw new Error("Nenhuma proposta pôde ser processada.");
       setPropostas(validas);
 
@@ -693,6 +694,24 @@ export default function Home() {
               </tbody>
             </table>
           </div>
+
+          {(resultado.opcoes ?? []).length > 0 && (
+            <div className="cartao" style={{ marginTop: 12 }}>
+              <strong>Fornecedores com mais de um produto no mesmo PDF</strong>
+              <p className="nota" style={{ margin: "4px 0 8px" }}>
+                Em cada equalização vale o produto que cobre o período pedido ({params.ano_inicio} a {params.ano_fim}) e tem a data mais recente.
+              </p>
+              <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
+                {(resultado.opcoes ?? []).map((o) => (
+                  <li key={o.Fornecedor}>
+                    <b>{o.Fornecedor}</b>: usado o produto <b>{o.Usada}</b>{o.Data ? ` (proposta de ${o.Data})` : ""}
+                    {o["Cobre o período"] ? "" : " — não cobre o período inteiro"}.
+                    {o.Ignoradas.length > 0 && <> Ignorados: {o.Ignoradas.map((x) => `${x.Produto}${x.Data ? ` (${x.Data})` : ""}`).join(", ")}.</>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="secao">Parâmetros de cálculo e aderência</div>
           <div className="cartao">

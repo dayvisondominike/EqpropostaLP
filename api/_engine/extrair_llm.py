@@ -70,7 +70,7 @@ CACHE_DIR = BASE_DIR / "processado" / "cache_llm"
 
 # Muda sempre que o schema abaixo (ou o prompt) mudar de um jeito que invalide
 # respostas já cacheadas.
-SCHEMA_VERSION = "v5"
+SCHEMA_VERSION = "v6"
 
 # Sonnet 5 em vez de Opus 5: para extração estruturada de documento (não é
 # raciocínio complexo) a precisão fica equivalente, com bem menos tokens/custo
@@ -148,6 +148,11 @@ class PropostaCompleta(BaseModel):
         None, description="Valor de ressarcimento pela perda TOTAL do desconto na TUSD/TUST, em R$/MWh"
     )
     pagamento: Optional[str] = None
+    produto: Optional[str] = Field(
+        None,
+        description='Rótulo curto do produto/período desta proposta, usado só quando o arquivo traz MAIS DE UM '
+                     'produto (ex.: "1S/2027", "2027", "2027 a 2029"). Null quando há um único produto.',
+    )
     datas: Optional[str] = Field(
         None,
         description='As três datas (base, emissão da proposta e validade da proposta) juntas '
@@ -156,6 +161,14 @@ class PropostaCompleta(BaseModel):
                      'rótulos: "Base: DD/MM/AAAA | Emissão: DD/MM/AAAA | Validade: <texto>". Se '
                      'não houver data de emissão explícita mas houver validade ("proposta válida '
                      'até X"), pode-se assumir que foi emitida no mesmo dia informado na validade.'
+    )
+
+
+class PropostasExtraidas(BaseModel):
+    """Um fornecedor pode trazer vários produtos no mesmo PDF (ex.: 1S/2027, 2027 e 2027 a 2029):
+    uma PropostaCompleta por produto."""
+    propostas: List[PropostaCompleta] = Field(
+        description="Uma entrada para cada produto/proposta distinto do arquivo; uma única entrada quando só há um produto."
     )
 
 
@@ -217,6 +230,17 @@ prazo de pagamento), sem os parágrafos de multa/juros/procedimento que costumam
 - "datas": as três datas (base, emissão da proposta, validade da proposta) juntas num único \
 campo de texto, no formato descrito no schema. Use DD/MM/AAAA quando possível; se o documento \
 só trouxer mês/ano abreviado (ex.: "Jan/27"), transcreva como está.
+- VÁRIOS PRODUTOS: um mesmo arquivo pode trazer mais de um produto/proposta do fornecedor (ex.: \
+"Produto 1: 1S/2027", "Produto 2: Jan-Dez 2027", ou uma proposta de 2027 a 2029), muitas vezes em \
+e-mails encadeados (resposta sobre resposta). Retorne UMA entrada em "propostas" para cada produto \
+distinto (períodos ou preços diferentes), cada uma com seus próprios período, preços por ano e \
+demais campos, e preencha "produto" com um rótulo curto (ex.: "1S/2027", "2027", "2027 a 2029"). \
+Quando só houver um produto, retorne uma única entrada e deixe "produto" null.
+- DATA DE CADA PRODUTO: em "datas", o rótulo "Emissão" deve ser a data do e-mail/documento em que \
+AQUELE produto aparece (em e-mail encadeado, o cabeçalho "Data" ou "Enviado" do bloco que contém o \
+produto - os blocos mais antigos ficam mais abaixo no arquivo). Se o mesmo produto (mesmo período e \
+mesmos preços) aparecer repetido em mais de um e-mail da cadeia, retorne-o uma só vez, com a data do \
+e-mail mais recente em que aparece. Não junte produtos diferentes numa mesma entrada.
 - Se um campo não existir em nenhum dos documentos, retorne null - nunca invente valores.
 - Alguns PDFs são escaneados ou têm o conteúdo como imagem (slides, apresentações); leia o \
 conteúdo visualmente nas páginas nesses casos."""
@@ -443,6 +467,7 @@ def _para_dict_proposta(nome_pasta: str, dados: PropostaCompleta) -> dict:
         "Garantia": dados.garantia,
         "RETUSD (R$/MWh)": dados.retusd_r_mwh,
         "Pagamento": dados.pagamento,
+        "Produto": (dados.produto or "").strip() or None,
         "Data Base": data_base,
         "Data da Proposta": data_proposta,
         "Validade da Proposta": validade_proposta,
@@ -544,19 +569,26 @@ def _blocos_documentos(caminhos: List[Path]) -> list:
 
 
 def extrair_proposta_llm(caminhos_pdf, nome_pasta: str):
-    """Extrai os dados de uma proposta (1+ PDFs do mesmo fornecedor) via LLM,
-    numa única chamada de API (schema PropostaCompleta, 12 campos + lista de
-    preços por ano). Retorna um dict no mesmo schema dos parse_X() em regex,
-    ou None se a extração não foi possível (sem SDK/chave, erro de API etc.)
-    - nesse caso o chamador deve tentar o parser em regex daquele fornecedor,
-    se existir."""
+    """Compatibilidade (extrair_dados_pdfs.py): só a primeira proposta do arquivo."""
+    propostas = extrair_propostas_llm(caminhos_pdf, nome_pasta)
+    return propostas[0] if propostas else None
+
+
+def extrair_propostas_llm(caminhos_pdf, nome_pasta: str):
+    """Extrai as propostas de um fornecedor (1+ PDFs) via LLM, numa única chamada
+    de API (schema PropostasExtraidas: uma PropostaCompleta por produto do
+    arquivo, cada uma com período, preços por ano e data própria). Retorna uma
+    lista de dicts no mesmo schema dos parse_X() em regex (com a chave extra
+    "Produto"), ou None se a extração não foi possível (sem SDK/chave, erro de
+    API etc.) - nesse caso o chamador deve tentar o parser em regex daquele
+    fornecedor, se existir."""
     caminhos = [Path(c) for c in caminhos_pdf]
     if not caminhos:
         return None
 
     hash_ = _hash_arquivos(caminhos)
     cache = _cache_ler(hash_)
-    if cache is not None:
+    if isinstance(cache, list) and cache:
         _registrar(nome_pasta, "Cache em disco", detalhe=f"{hash_}.json")
         return cache
 
@@ -574,18 +606,18 @@ def extrair_proposta_llm(caminhos_pdf, nome_pasta: str):
             if len(caminhos) > 1 else ""
         )
         instrucao = (
-            f'Extraia todos os dados da proposta comercial de energia do fornecedor '
-            f'"{nome_pasta}" anexada acima.' + aviso_multiplos
+            f'Extraia todos os dados das propostas comerciais de energia do fornecedor '
+            f'"{nome_pasta}" anexadas acima (uma entrada por produto).' + aviso_multiplos
         )
         resp = client.messages.parse(
             model=MODEL_ID,
-            max_tokens=2048,
+            max_tokens=6144,
             system=_SYSTEM_PROPOSTA_CACHEADO,
             messages=[{"role": "user", "content": docs + [{"type": "text", "text": instrucao}]}],
-            output_format=PropostaCompleta,
+            output_format=PropostasExtraidas,
         )
         dados_llm = resp.parsed_output
-        if dados_llm is None:
+        if dados_llm is None or not dados_llm.propostas:
             raise ValueError("resposta da API não trouxe saída estruturada válida")
     except Exception as e:
         print(
@@ -595,8 +627,9 @@ def extrair_proposta_llm(caminhos_pdf, nome_pasta: str):
         _registrar(nome_pasta, "Regex", detalhe=f"Falha na API: {e.__class__.__name__}: {e}")
         return None
 
-    _registrar(nome_pasta, f"API ({MODEL_ID})", resp)
-    dados = _para_dict_proposta(nome_pasta, dados_llm)
+    _registrar(nome_pasta, f"API ({MODEL_ID})", resp,
+               detalhe=f"{len(dados_llm.propostas)} produtos" if len(dados_llm.propostas) > 1 else "")
+    dados = [_para_dict_proposta(nome_pasta, p) for p in dados_llm.propostas]
     _cache_gravar(hash_, dados)
     return dados
 
