@@ -29,6 +29,10 @@ import io
 import json
 import os
 import re
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 from typing import List, Optional
 
@@ -83,7 +87,7 @@ MODEL_ID = os.environ.get("EQUALIZACAO_LLM_MODEL", "claude-sonnet-5")
 EVENTOS: List[dict] = []
 
 
-def _registrar(fornecedor: str, origem: str, resp=None, detalhe: str = ""):
+def _registrar(fornecedor: str, origem: str, resp=None, detalhe: str = "", segundos: Optional[float] = None):
     uso = getattr(resp, "usage", None)
     if uso is None:
         cache_prompt = "—"
@@ -101,8 +105,17 @@ def _registrar(fornecedor: str, origem: str, resp=None, detalhe: str = ""):
         "Cache do prompt": cache_prompt,
         "Tokens de entrada": _tokens(uso.input_tokens if uso else 0),
         "Tokens de saída": _tokens(uso.output_tokens if uso else 0),
+        "Tempo (s)": f"{segundos:.1f}" if segundos is not None else "—",
         "Detalhe": detalhe,
     })
+    # Uma linha por extração nos logs da Vercel (tempo e tokens), para acompanhar custo e lentidão.
+    print(
+        f"[EXTRAÇÃO] {fornecedor} | {origem} | "
+        f"tempo={f'{segundos:.1f}s' if segundos is not None else '-'} | "
+        f"entrada={uso.input_tokens if uso else '-'} | saída={uso.output_tokens if uso else '-'} | "
+        f"cache_prompt={cache_prompt}" + (f" | {detalhe}" if detalhe else ""),
+        flush=True,
+    )
 
 
 # ----------------------------------------------------------------------------
@@ -288,27 +301,88 @@ def _client():
 def _hash_arquivos(caminhos: List[Path]) -> str:
     h = hashlib.sha256()
     h.update(SCHEMA_VERSION.encode())
+    h.update(MODEL_ID.encode())  # trocar de modelo invalida o cache
     for caminho in sorted(caminhos, key=lambda p: p.name):
         h.update(caminho.name.encode("utf-8"))
         h.update(caminho.read_bytes())
     return h.hexdigest()[:24]
 
 
-def _cache_ler(hash_: str):
-    caminho = CACHE_DIR / f"{hash_}.json"
-    if not caminho.exists():
+# Cache em duas camadas: disco (rápido; no Vercel é a pasta temporária da chamada, apagada
+# ao final dela) e Vercel Blob (persiste entre chamadas e deployments). Sem
+# BLOB_READ_WRITE_TOKEN (uso local) só vale o disco.
+_BLOB_API = "https://vercel.com/api/blob/"
+_BLOB_API_VERSION = "11"  # mesma versão usada pelo @vercel/blob do app
+_BLOB_PREFIXO = "cache_llm/"
+
+
+def _blob_config():
+    token = os.environ.get("BLOB_READ_WRITE_TOKEN", "").strip()
+    partes = token.split("_")  # vercel_blob_rw_<idDaLoja>_<segredo>
+    if os.environ.get("EQUALIZACAO_SEM_CACHE_BLOB") or len(partes) < 5:
+        return None
+    return token, f"https://{partes[3].lower()}.public.blob.vercel-storage.com/"
+
+
+def _blob_ler(hash_: str):
+    cfg = _blob_config()
+    if cfg is None:
         return None
     try:
-        return json.loads(caminho.read_text(encoding="utf-8"))
+        # ?t=<agora> evita que o CDN sirva um "não encontrado" guardado de uma consulta anterior.
+        with urllib.request.urlopen(f"{cfg[1]}{_BLOB_PREFIXO}{hash_}.json?t={time.time_ns()}", timeout=8) as r:
+            return json.loads(r.read().decode("utf-8"))
     except Exception:
-        return None
+        return None  # inclusive 404 (ainda não cacheado)
 
 
-def _cache_gravar(hash_: str, dados: dict):
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    (CACHE_DIR / f"{hash_}.json").write_text(
-        json.dumps(dados, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+def _blob_gravar(hash_: str, dados) -> bool:
+    cfg = _blob_config()
+    if cfg is None:
+        return False
+    try:
+        req = urllib.request.Request(
+            _BLOB_API + "?" + urllib.parse.urlencode({"pathname": f"{_BLOB_PREFIXO}{hash_}.json"}),
+            data=json.dumps(dados, ensure_ascii=False).encode("utf-8"),
+            method="PUT",
+            headers={
+                "authorization": f"Bearer {cfg[0]}",
+                "x-api-version": _BLOB_API_VERSION,
+                "x-content-type": "application/json",
+                "x-add-random-suffix": "0",
+                "x-allow-overwrite": "1",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10):
+            return True
+    except Exception as e:
+        print(f"[AVISO] Não gravei o cache no Blob ({e.__class__.__name__}: {e})", flush=True)
+        return False
+
+
+def _cache_ler(hash_: str):
+    """(dados, origem) ou (None, None). origem: 'Cache em disco' ou 'Cache (Blob)'."""
+    caminho = CACHE_DIR / f"{hash_}.json"
+    if caminho.exists():
+        try:
+            return json.loads(caminho.read_text(encoding="utf-8")), "Cache em disco"
+        except Exception:
+            pass
+    dados = _blob_ler(hash_)
+    if dados is not None:
+        return dados, "Cache (Blob)"
+    return None, None
+
+
+def _cache_gravar(hash_: str, dados):
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        (CACHE_DIR / f"{hash_}.json").write_text(
+            json.dumps(dados, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    except OSError:
+        pass  # disco somente leitura: segue só com o Blob
+    _blob_gravar(hash_, dados)
 
 
 def _bloco_documento(dados_pdf: bytes) -> dict:
@@ -587,9 +661,9 @@ def extrair_propostas_llm(caminhos_pdf, nome_pasta: str):
         return None
 
     hash_ = _hash_arquivos(caminhos)
-    cache = _cache_ler(hash_)
+    cache, origem_cache = _cache_ler(hash_)
     if isinstance(cache, list) and cache:
-        _registrar(nome_pasta, "Cache em disco", detalhe=f"{hash_}.json")
+        _registrar(nome_pasta, origem_cache, detalhe=f"{hash_}.json", segundos=0.0)
         return cache
 
     client = _client()
@@ -609,6 +683,7 @@ def extrair_propostas_llm(caminhos_pdf, nome_pasta: str):
             f'Extraia todos os dados das propostas comerciais de energia do fornecedor '
             f'"{nome_pasta}" anexadas acima (uma entrada por produto).' + aviso_multiplos
         )
+        t0 = time.monotonic()
         resp = client.messages.parse(
             model=MODEL_ID,
             max_tokens=6144,
@@ -616,6 +691,7 @@ def extrair_propostas_llm(caminhos_pdf, nome_pasta: str):
             messages=[{"role": "user", "content": docs + [{"type": "text", "text": instrucao}]}],
             output_format=PropostasExtraidas,
         )
+        segundos = time.monotonic() - t0
         dados_llm = resp.parsed_output
         if dados_llm is None or not dados_llm.propostas:
             raise ValueError("resposta da API não trouxe saída estruturada válida")
@@ -628,7 +704,8 @@ def extrair_propostas_llm(caminhos_pdf, nome_pasta: str):
         return None
 
     _registrar(nome_pasta, f"API ({MODEL_ID})", resp,
-               detalhe=f"{len(dados_llm.propostas)} produtos" if len(dados_llm.propostas) > 1 else "")
+               detalhe=f"{len(dados_llm.propostas)} produtos" if len(dados_llm.propostas) > 1 else "",
+               segundos=segundos)
     dados = [_para_dict_proposta(nome_pasta, p) for p in dados_llm.propostas]
     _cache_gravar(hash_, dados)
     return dados
@@ -642,9 +719,9 @@ def extrair_cliente_llm(caminho_pdf):
     fallback)."""
     caminho = Path(caminho_pdf)
     hash_ = _hash_arquivos([caminho])
-    cache = _cache_ler(hash_)
-    if cache is not None:
-        _registrar("E-mail do cliente", "Cache em disco", detalhe=f"{hash_}.json")
+    cache, origem_cache = _cache_ler(hash_)
+    if isinstance(cache, dict) and cache:
+        _registrar("E-mail do cliente", origem_cache, detalhe=f"{hash_}.json", segundos=0.0)
         return cache
 
     client = _client()
@@ -654,6 +731,7 @@ def extrair_cliente_llm(caminho_pdf):
 
     try:
         docs = _blocos_documentos([caminho])
+        t0 = time.monotonic()
         resp = client.messages.parse(
             model=MODEL_ID,
             max_tokens=1024,
@@ -665,6 +743,7 @@ def extrair_cliente_llm(caminho_pdf):
             }]}],
             output_format=ClienteCompleto,
         )
+        segundos = time.monotonic() - t0
         dados_llm = resp.parsed_output
         if dados_llm is None:
             raise ValueError("resposta da API não trouxe saída estruturada válida")
@@ -676,7 +755,7 @@ def extrair_cliente_llm(caminho_pdf):
         _registrar("E-mail do cliente", "Regex", detalhe=f"Falha na API: {e.__class__.__name__}: {e}")
         return None
 
-    _registrar("E-mail do cliente", f"API ({MODEL_ID})", resp)
+    _registrar("E-mail do cliente", f"API ({MODEL_ID})", resp, segundos=segundos)
 
     dados = _para_dict_cliente(dados_llm)
     _cache_gravar(hash_, dados)

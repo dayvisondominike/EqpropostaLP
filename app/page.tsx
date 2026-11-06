@@ -19,6 +19,8 @@ import {
 } from "@/lib/types";
 
 const CONCORRENCIA = 3;
+/** Constante de tempo da barra estimada de cada fornecedor (a extração leva ~2 min). */
+const TEMPO_TIPICO_MS = 60000;
 
 /** Dados do cliente digitados à mão quando não há o PDF do e-mail de cotação. */
 type FormCliente = {
@@ -105,6 +107,9 @@ export default function Home() {
   const [arquivosNovos, setArquivosNovos] = useState<File[]>([]);
   const [ocupado, setOcupado] = useState(false);
   const [progresso, setProgresso] = useState(0);
+  // 0 = lendo o e-mail do cliente, 1 = extraindo as propostas, 2 = calculando/salvando.
+  const [fase, setFase] = useState<0 | 1 | 2>(0);
+  const [agora, setAgora] = useState(() => Date.now());
   const [mensagem, setMensagem] = useState("");
   const [erro, setErro] = useState("");
   const [cliente, setCliente] = useState<Cliente | null>(null);
@@ -119,6 +124,28 @@ export default function Home() {
   const [abrindo, setAbrindo] = useState("");
   const [idSalvo, setIdSalvo] = useState<string | null>(null);
   const [avisoBanco, setAvisoBanco] = useState("");
+
+  // Relógio da barra de progresso: a extração por LLM leva ~1 a 2 min e a API não informa andamento,
+  // então a barra de cada fornecedor avança por tempo estimado (some ao concluir, indo a 100%).
+  useEffect(() => {
+    if (!ocupado) return;
+    const t = setInterval(() => setAgora(Date.now()), 500);
+    return () => clearInterval(t);
+  }, [ocupado]);
+
+  const pctDe = (f: Fornecedor) => {
+    if (f.estado === "concluido" || f.estado === "erro") return 100;
+    if (f.estado !== "processando") return 0;
+    if (!f.inicio) return 3;
+    return Math.min(95, Math.round(5 + 90 * (1 - Math.exp(-(agora - f.inicio) / TEMPO_TIPICO_MS))));
+  };
+  const pctGeral = !ocupado
+    ? progresso
+    : fase === 0
+      ? 3
+      : fase === 1
+        ? Math.round(5 + (85 * fornecedores.reduce((s, f) => s + pctDe(f), 0)) / Math.max(1, fornecedores.length) / 100)
+        : 92;
 
   useEffect(() => {
     if (tela !== "inicio") return;
@@ -285,6 +312,7 @@ export default function Home() {
     setErro("");
     setResultado(null);
     setProgresso(0);
+    setFase(0);
     try {
       let resp: { dados: Cliente };
       if (manual) {
@@ -298,6 +326,8 @@ export default function Home() {
 
       const total = fornecedores.length;
       let feitos = 0;
+      setFase(1);
+      setMensagem(`Analisando propostas: 0/${total}`);
       const coletadas: (Proposta[] | undefined)[] = new Array(total);
       let proximo = 0;
 
@@ -305,13 +335,12 @@ export default function Home() {
         while (proximo < total) {
           const i = proximo++;
           const f = fornecedores[i];
-          atualizar(f.id, { estado: "processando", detalhe: "enviando PDFs…" });
+          atualizar(f.id, { estado: "processando", detalhe: "enviando PDFs…", inicio: Date.now() });
           try {
             if (f.proposta) {
               coletadas[i] = [{ ...f.proposta, Fornecedor: f.nome.toUpperCase() }];
               atualizar(f.id, { estado: "concluido", detalhe: "cotação da planilha" });
               feitos++;
-              setProgresso(Math.round((feitos / total) * 90));
               setMensagem(`Analisando propostas: ${feitos}/${total}`);
               continue;
             }
@@ -320,12 +349,14 @@ export default function Home() {
             const r = await extrairFornecedor(f.nome, urls);
             // PDF com vários produtos (ex.: 1S/2027, 2027, 2027 a 2029): uma proposta por produto.
             coletadas[i] = r.opcoes && r.opcoes.length > 1 ? r.opcoes : [r.dados];
-            atualizar(f.id, { estado: "concluido", detalhe: r.opcoes && r.opcoes.length > 1 ? `${r.origem} · ${r.opcoes.length} produtos` : r.origem });
+            // Tempo da extração (ou "cache", quando o resultado já estava guardado), vindo do log do servidor.
+            const ev = r.eventos?.find((e) => e["Tempo (s)"] && e["Tempo (s)"] !== "—");
+            const tempo = !ev ? "" : ev.Origem?.startsWith("Cache") ? " · cache" : ` · ${ev["Tempo (s)"].replace(".", ",")} s`;
+            atualizar(f.id, { estado: "concluido", detalhe: `${r.origem}${tempo}${r.opcoes && r.opcoes.length > 1 ? ` · ${r.opcoes.length} produtos` : ""}` });
           } catch (e) {
             atualizar(f.id, { estado: "erro", detalhe: (e as Error).message });
           }
           feitos++;
-          setProgresso(Math.round((feitos / total) * 90));
           setMensagem(`Analisando propostas: ${feitos}/${total}`);
         }
       }
@@ -335,6 +366,7 @@ export default function Home() {
       if (validas.length === 0) throw new Error("Nenhuma proposta pôde ser processada.");
       setPropostas(validas);
 
+      setFase(2);
       setMensagem("Calculando VPL, aderência e ranking…");
       const res = await consolidar(validas, resp.dados);
       setResultado(res);
@@ -585,6 +617,12 @@ export default function Home() {
                   <small title={f.arquivos.map((a) => a.name).join("\n")}>
                     {f.arquivos.length} arquivo(s){f.detalhe ? ` · ${f.detalhe}` : ""}
                   </small>
+                  {ocupado && (f.estado === "processando" || f.estado === "concluido") && (
+                    <div className="barra-linha mini">
+                      <div className="barra"><div style={{ width: `${pctDe(f)}%` }} /></div>
+                      <span>{pctDe(f)}%</span>
+                    </div>
+                  )}
                 </div>
                 {!ocupado && f.estado === "pendente" && (
                   <button className="sec" onClick={() => setFornecedores((fs) => fs.filter((x) => x.id !== f.id))}>
@@ -603,7 +641,10 @@ export default function Home() {
         </button>
         {(ocupado || progresso > 0) && (
           <>
-            <div className="barra"><div style={{ width: `${progresso}%` }} /></div>
+            <div className="barra-linha">
+              <div className="barra"><div style={{ width: `${pctGeral}%` }} /></div>
+              <strong>{pctGeral}%</strong>
+            </div>
             <div className="nota">{mensagem}</div>
           </>
         )}

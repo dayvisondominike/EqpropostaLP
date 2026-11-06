@@ -96,6 +96,12 @@ label { font-size: 13px; font-weight: 600; color: var(--texto-suave); display: b
 
 .barra { height: 10px; background: var(--borda); border-radius: 5px; overflow: hidden; margin: 14px 0 6px; }
 .barra > div { height: 100%; background: linear-gradient(90deg, var(--verde-vivo), var(--amarelo)); transition: width .3s; }
+.barra-linha { display: flex; align-items: center; gap: 10px; margin: 14px 0 6px; }
+.barra-linha .barra { flex: 1; margin: 0; }
+.barra-linha strong { min-width: 42px; text-align: right; font-variant-numeric: tabular-nums; }
+.barra-linha.mini { margin: 8px 0 0; }
+.barra-linha.mini .barra { height: 6px; }
+.barra-linha.mini span { min-width: 34px; text-align: right; font-size: 12px; color: var(--texto-suave); font-variant-numeric: tabular-nums; }
 .acao { margin-top: 20px; }
 
 /* Métricas */

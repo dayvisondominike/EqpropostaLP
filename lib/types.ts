@@ -110,4 +110,6 @@ export type Fornecedor = {
   proposta?: Proposta;
   estado: EstadoFornecedor;
   detalhe?: string;
+  /** Instante (ms) em que a extração começou; alimenta a barra de progresso estimada do cartão. */
+  inicio?: number;
 };
