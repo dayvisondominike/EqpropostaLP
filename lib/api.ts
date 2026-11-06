@@ -71,8 +71,9 @@ export async function buscarPld(): Promise<RespostaPld> {
 /** Grava no banco (Vercel Blob) os dados baixados da CCEE e devolve o histórico consolidado. */
 export const salvarPld = (dados: Record<string, Record<string, number>>) => postar<RespostaPld>("/api/pld", { dados });
 
-export const consolidar = (propostas: Proposta[], cliente: Cliente, params?: Partial<Params>) =>
-  postar<Resultado>("/api/consolidar", { propostas, cliente, params });
+/** `escolhas`: produto escolhido pelo usuário por fornecedor com vários produtos no PDF ({ fornecedor: produto }). */
+export const consolidar = (propostas: Proposta[], cliente: Cliente, params?: Partial<Params>, escolhas?: Record<string, string>) =>
+  postar<Resultado>("/api/consolidar", { propostas, cliente, params, escolhas });
 
 export async function listarEqualizacoes(): Promise<ResumoEqualizacao[]> {
   const resp = await fetch("/api/equalizacoes", { cache: "no-store" });

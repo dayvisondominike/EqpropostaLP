@@ -388,7 +388,14 @@ export default function Home() {
     setOcupado(true);
     setErro("");
     try {
-      const res = await consolidar(propostas, cliente, params);
+      // Escolhas de produto: as novas (feitas no aviso) e as que o usuário já tinha feito antes.
+      const escolhas: Record<string, string> = {};
+      for (const o of resultado?.opcoes ?? []) {
+        const produto = produtoEscolhido[o.Fornecedor] ?? (o.Manual ? o.Usada : undefined);
+        if (produto) escolhas[o.Fornecedor] = produto;
+      }
+      const res = await consolidar(propostas, cliente, params, escolhas);
+      setProdutoEscolhido({});
       setResultado(res);
       setParams(res.params);
       await guardar(res, propostas, idSalvo);
@@ -398,6 +405,10 @@ export default function Home() {
       setOcupado(false);
     }
   }
+
+  // Produto escolhido no aviso de "mais de um produto no mesmo PDF" que ainda não foi aplicado (vale após Recalcular).
+  const [produtoEscolhido, setProdutoEscolhido] = useState<Record<string, string>>({});
+  useEffect(() => setProdutoEscolhido({}), [resultado]);
 
   const [gerandoPdf, setGerandoPdf] = useState(false);
 
@@ -740,16 +751,38 @@ export default function Home() {
             <div className="cartao" style={{ marginTop: 12 }}>
               <strong>Fornecedores com mais de um produto no mesmo PDF</strong>
               <p className="nota" style={{ margin: "4px 0 8px" }}>
-                Em cada equalização vale o produto que cobre o período pedido ({params.ano_inicio} a {params.ano_fim}) e tem a data mais recente.
+                Por padrão vale o produto que cobre o período pedido ({params.ano_inicio} a {params.ano_fim}) e tem a data mais recente.
+                Se quiser outro, escolha abaixo e clique em <b>↻ Recalcular</b> para aplicar.
               </p>
-              <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
-                {(resultado.opcoes ?? []).map((o) => (
-                  <li key={o.Fornecedor}>
-                    <b>{o.Fornecedor}</b>: usado o produto <b>{o.Usada}</b>{o.Data ? ` (proposta de ${o.Data})` : ""}
-                    {o["Cobre o período"] ? "" : " — não cobre o período inteiro"}.
-                    {o.Ignoradas.length > 0 && <> Ignorados: {o.Ignoradas.map((x) => `${x.Produto}${x.Data ? ` (${x.Data})` : ""}`).join(", ")}.</>}
-                  </li>
-                ))}
+              <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.9 }}>
+                {(resultado.opcoes ?? []).map((o) => {
+                  const todos = [{ Produto: o.Usada, Data: o.Data }, ...o.Ignoradas];
+                  const escolhido = produtoEscolhido[o.Fornecedor] ?? o.Usada;
+                  const mudou = escolhido !== o.Usada;
+                  return (
+                    <li key={o.Fornecedor}>
+                      <b>{o.Fornecedor}</b>: usado o produto <b>{o.Usada}</b>{o.Data ? ` (proposta de ${o.Data})` : ""}
+                      {o["Cobre o período"] ? "" : " — não cobre o período inteiro"}{o.Manual ? " — escolhido por você" : ""}.
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                        <label style={{ margin: 0 }}>Usar:</label>
+                        <select value={escolhido} disabled={ocupado}
+                          onChange={(e) => setProdutoEscolhido((s) => ({ ...s, [o.Fornecedor]: e.target.value }))}>
+                          {todos.map((x) => (
+                            <option key={x.Produto} value={x.Produto}>{x.Produto}{x.Data ? ` (${x.Data})` : ""}{x.Produto === o.Usada ? " — em uso" : ""}</option>
+                          ))}
+                        </select>
+                        {mudou && (
+                          <>
+                            <span className="nota" style={{ color: "var(--erro)" }}>
+                              O ranking ainda usa “{o.Usada}”. Clique em Recalcular para aplicar “{escolhido}”.
+                            </span>
+                            <button className="sec" onClick={recalcular} disabled={ocupado || pesosInvalidos || periodoInvalido}>↻ Recalcular agora</button>
+                          </>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}

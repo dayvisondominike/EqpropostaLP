@@ -361,11 +361,13 @@ def _meses_cobertos(proposta: dict) -> set:
     return {(a, m) for a in anos for m in range(1, 13)}
 
 
-def _escolher_opcoes(propostas: list, params: dict):
+def _escolher_opcoes(propostas: list, params: dict, manuais: dict | None = None):
     """Quando um fornecedor traz vários produtos no mesmo PDF (uma proposta por produto, com a chave "Produto"),
     usa só um deles em cada equalização: o que cobre o período pedido (ano_inicio a ano_fim) e, entre os que
     cobrem, o de data mais recente. Se nenhum cobrir o período inteiro, vale o que cobre mais anos dele.
+    `manuais` ({fornecedor: produto}) é a escolha feita pelo usuário na tela e vale sobre o critério acima.
     Devolve (propostas escolhidas, resumo das escolhas para mostrar na tela)."""
+    manuais = manuais or {}
     grupos: dict = {}
     for i, l in enumerate(propostas):
         if l.get("Produto"):
@@ -385,6 +387,9 @@ def _escolher_opcoes(propostas: list, params: dict):
             return (-len(meses & periodo), -(data.toordinal() if data else 0), len(meses - periodo), i)
 
         ordem = sorted(indices, key=chave)
+        manual = next((i for i in ordem if str(propostas[i].get("Produto")) == str(manuais.get(nome))), None)
+        if manual is not None:
+            ordem = [manual] + [i for i in ordem if i != manual]
         escolhida = ordem[0]
         cobre = periodo <= _meses_cobertos(propostas[escolhida])
         data_esc = _data_da_proposta(propostas[escolhida])
@@ -393,6 +398,7 @@ def _escolher_opcoes(propostas: list, params: dict):
             "Usada": propostas[escolhida]["Produto"],
             "Data": data_esc.strftime("%d/%m/%Y") if data_esc else None,
             "Cobre o período": cobre,
+            "Manual": manual is not None,
             "Ignoradas": [
                 {"Produto": propostas[i]["Produto"],
                  "Data": (_data_da_proposta(propostas[i]).strftime("%d/%m/%Y") if _data_da_proposta(propostas[i]) else None)}
@@ -424,13 +430,13 @@ def _limitar_ao_periodo(proposta: dict, params: dict) -> dict:
     return proposta
 
 
-def consolidar(propostas: list, cliente: dict, params: dict | None = None) -> dict:
+def consolidar(propostas: list, cliente: dict, params: dict | None = None, escolhas_manuais: dict | None = None) -> dict:
     if not propostas:
         raise ValueError("Nenhuma proposta recebida.")
     p = {**parametros_do_cliente(cliente), **(params or {})}
     _aplicar_parametros(p)
 
-    propostas, escolhas = _escolher_opcoes(propostas, p)
+    propostas, escolhas = _escolher_opcoes(propostas, p, escolhas_manuais)
     propostas = [_limitar_ao_periodo(_ajustar_cotacao_de_mercado(l, cliente, p), p) for l in propostas]
     df_propostas = _montar_dataframe(propostas)
     df_cliente = pd.DataFrame([cliente])

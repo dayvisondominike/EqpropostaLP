@@ -37,7 +37,7 @@ def _extrair(corpo: dict) -> dict:
 
 
 def _consolidar(corpo: dict) -> dict:
-    return engine.consolidar(corpo["propostas"], corpo["cliente"], corpo.get("params"))
+    return engine.consolidar(corpo["propostas"], corpo["cliente"], corpo.get("params"), corpo.get("escolhas"))
 
 
 ROTAS = {

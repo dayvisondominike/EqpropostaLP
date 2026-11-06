@@ -84,6 +84,8 @@ export type EscolhaOpcao = {
   Usada: string;
   Data: string | null;
   "Cobre o período": boolean;
+  /** true quando o produto foi escolhido pelo usuário (e não pelo critério de período e data). */
+  Manual?: boolean;
   Ignoradas: { Produto: string; Data: string | null }[];
 };
 
