@@ -116,14 +116,27 @@ def calcular_preco_medio_vpl(precos_por_ano: dict, volume: float):
     return media, vpl
 
 
+INFINITO = float("inf")
+
+
+def _lim(sinal: str, valor: float) -> str:
+    """Limite para mensagens: '+30%' ou 'ilimitado'."""
+    return "ilimitado" if valor == INFINITO else f"{sinal}{valor:g}%"
+
+
 def _parse_intervalo_percentual(texto: str):
     """Extrai os limites inferior (-) e superior (+) de um campo percentual
     bilateral da proposta (usado tanto para Flexibilidade quanto para
     Sazonalização), como magnitudes positivas. Cobre tanto notação simétrica
     ("+/-30%", "+-30%", "-/+ 30%", "+ou- 30%", "Variação de 30,00%") quanto
     assimétrica com sinais explícitos ("-100% / +100%", "LI: -50% LS: +30%").
-    Retorna (None, None) se nada for encontrado (ex.: texto "Flat")."""
+    Retorna (None, None) se nada for encontrado (ex.: texto "Flat").
+    Flexibilidade/sazonalização "ilimitada" (ou "sem limite") vale infinito nos dois limites: é melhor
+    que qualquer valor que o cliente peça."""
     texto = _txt(texto)
+
+    if re.search(r"ilimitad|sem\s+limite|irrestrit", texto, re.IGNORECASE):
+        return INFINITO, INFINITO
 
     combinado = re.search(
         r"(?:\+\s*/?\s*-|-\s*/?\s*\+|\+\s*ou\s*-|-\s*ou\s*\+)\s*(\d+(?:,\d+)?)\s*%", texto, re.IGNORECASE
@@ -256,11 +269,11 @@ def avaliar_aderencia(row: dict, cliente: dict):
     if sazo_superior < SAZONALIZACAO_SUPERIOR_MINIMA:
         sazo_restritiva.append(f"limite superior ofertado +{sazo_superior:g}% é menor que o mínimo solicitado (+{SAZONALIZACAO_SUPERIOR_MINIMA:g}%)")
     elif sazo_superior > SAZONALIZACAO_SUPERIOR_MINIMA:
-        sazo_ampla.append(f"limite superior ofertado +{sazo_superior:g}% é maior que o mínimo solicitado (+{SAZONALIZACAO_SUPERIOR_MINIMA:g}%)")
+        sazo_ampla.append(f"limite superior ofertado {_lim('+', sazo_superior)} é maior que o mínimo solicitado (+{SAZONALIZACAO_SUPERIOR_MINIMA:g}%)")
     if sazo_inferior < SAZONALIZACAO_INFERIOR_MINIMA:
         sazo_restritiva.append(f"limite inferior ofertado -{sazo_inferior:g}% é menor que o mínimo solicitado (-{SAZONALIZACAO_INFERIOR_MINIMA:g}%)")
     elif sazo_inferior > SAZONALIZACAO_INFERIOR_MINIMA:
-        sazo_ampla.append(f"limite inferior ofertado -{sazo_inferior:g}% é maior que o mínimo solicitado (-{SAZONALIZACAO_INFERIOR_MINIMA:g}%)")
+        sazo_ampla.append(f"limite inferior ofertado {_lim('-', sazo_inferior)} é maior que o mínimo solicitado (-{SAZONALIZACAO_INFERIOR_MINIMA:g}%)")
 
     if sazo_restritiva:
         observacoes.append(f"Sazonalização ofertada ({sazo}) é mais restritiva que a solicitada: {'; '.join(sazo_restritiva)}")
@@ -278,12 +291,12 @@ def avaliar_aderencia(row: dict, cliente: dict):
         if flex_superior < FLEXIBILIDADE_SUPERIOR_MINIMA:
             flex_restritiva.append(f"limite superior +{flex_superior:g}% menor que o solicitado (+{FLEXIBILIDADE_SUPERIOR_MINIMA:g}%)")
         elif flex_superior > FLEXIBILIDADE_SUPERIOR_MINIMA:
-            flex_ampla.append(f"limite superior ofertado +{flex_superior:g}% é maior que o solicitado (+{FLEXIBILIDADE_SUPERIOR_MINIMA:g}%)")
+            flex_ampla.append(f"limite superior ofertado {_lim('+', flex_superior)} é maior que o solicitado (+{FLEXIBILIDADE_SUPERIOR_MINIMA:g}%)")
     if flex_inferior is not None:
         if flex_inferior < FLEXIBILIDADE_INFERIOR_MINIMA:
             flex_restritiva.append(f"limite inferior -{flex_inferior:g}% menor que o solicitado (-{FLEXIBILIDADE_INFERIOR_MINIMA:g}%)")
         elif flex_inferior > FLEXIBILIDADE_INFERIOR_MINIMA:
-            flex_ampla.append(f"limite inferior ofertado -{flex_inferior:g}% é maior que o solicitado (-{FLEXIBILIDADE_INFERIOR_MINIMA:g}%)")
+            flex_ampla.append(f"limite inferior ofertado {_lim('-', flex_inferior)} é maior que o solicitado (-{FLEXIBILIDADE_INFERIOR_MINIMA:g}%)")
     if flex_restritiva:
         observacoes.append(f"Flexibilidade ofertada ({flex}) é mais restritiva que a solicitada: {'; '.join(flex_restritiva)}")
     if flex_ampla:
