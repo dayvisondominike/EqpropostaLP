@@ -548,7 +548,7 @@ function cartaoPld(doc: jsPDF, x: number, y: number, w: number, rotulo: string, 
   doc.text(valor, x + 4, y + 17);
 }
 
-/** Página "PLD × Energia i5 Spot": cards, gráfico e comparação com a proposta vencedora. */
+/** Página "PLD × Energia i5 Spot": cards, gráfico e comparação com o 1º no RANK. */
 function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lider: LinhaRanking | undefined) {
   const { doc, larg, alt } = c;
   const sub = chaveSubmercado(resultado.params.submercado);
@@ -645,7 +645,7 @@ function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lid
     doc.setFont("helvetica", "bold");
     doc.setFontSize(6.5);
     doc.setTextColor(...AZUL);
-    doc.text(`Proposta vencedora (${lider.Fornecedor}): ${num2(refPreco)}`, gx + gw, py(refPreco) - 1.4, { align: "right" });
+    doc.text(`1º no RANK (${lider.Fornecedor}): ${num2(refPreco)}`, gx + gw, py(refPreco) - 1.4, { align: "right" });
   }
 
   // Linha da média i5 Spot do período (mesma da tela)
@@ -718,7 +718,7 @@ function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lid
     doc.setLineDashPattern([0.8, 1.4], 0);
     doc.line(MARGEM + 134, ly, MARGEM + 142, ly);
     doc.setLineDashPattern([], 0);
-    doc.text("Média da proposta vencedora", MARGEM + 144, ly + 1);
+    doc.text("Média do 1º no RANK", MARGEM + 144, ly + 1);
   }
 
   // Leitura do resultado
