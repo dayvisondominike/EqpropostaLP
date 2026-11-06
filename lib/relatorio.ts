@@ -642,11 +642,13 @@ function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lid
     doc.setLineDashPattern([0.8, 1.4], 0);
     doc.line(gx, py(refPreco), gx + gw + 2, py(refPreco));
     doc.setLineDashPattern([], 0);
-    // Rótulo na faixa à direita do gráfico (igual ao da Média i5 Spot), fora das curvas; se as duas
-    // linhas ficarem próximas, o rótulo do 1º é afastado para não sobrepor o da média.
-    const dist = py(refPreco) - py(mediaI5);
-    const dy = Math.abs(dist) < 11 ? (dist <= 0 ? -1 : 1) * (11 - Math.abs(dist)) : 0;
-    const yr = py(refPreco) + dy;
+    // Rótulo na faixa à direita do gráfico (como o da Média i5 Spot), fora das curvas: "1º no RANK" e o
+    // valor acima da linha e o nome do fornecedor no nível dela. Se ficar sobre o rótulo da média i5,
+    // o bloco do 1º é afastado (para cima ou para baixo) para não sobrepor.
+    const pm = py(mediaI5);
+    let yr = py(refPreco) - 6.1;
+    const topM = pm - 3, botM = pm + 4.5; // faixa vertical ocupada pelo rótulo da média i5
+    if (yr + 7.5 > topM && yr - 3 < botM) yr = yr + 2.25 <= pm + 0.75 ? topM - 1.5 - 7.5 : botM + 1.5 + 3;
     const nome = String(lider.Fornecedor);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(6.3);
