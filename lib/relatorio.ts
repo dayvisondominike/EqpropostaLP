@@ -776,7 +776,10 @@ function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lid
 }
 
 /** Gera o relatório de equalização em PDF (retrato) no navegador e dispara o download. */
-export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMercado) {
+/** Textos das páginas do comparativo 1º × 2º. Sem eles, valem os textos das regras fixas (lib/comparativo.ts). */
+export type Narrativa = { resumo: string; atencao: string[]; proximoPasso: string };
+
+export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMercado, narrativa?: Narrativa) {
   const { jsPDF: JsPdf } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
 
@@ -927,7 +930,7 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
     yc += 4;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    const linhasResumo = doc.splitTextToSize(s(cmp.resumo), util - 10) as string[];
+    const linhasResumo = doc.splitTextToSize(s(narrativa?.resumo ?? cmp.resumo), util - 10) as string[];
     const hResumo = linhasResumo.length * 4 + 11;
     cartaoBase(doc, MARGEM, yc, util, hResumo, AMARELO, AMARELO_CLARO);
     doc.setTextColor(31, 45, 43);
@@ -1037,7 +1040,7 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
     doc.setFontSize(8.5);
     // Flexibilidade, sazonalização, modulação e aderência diferentes já aparecem na tabela acima.
     const jaNaTabela = /^(Flexibilidade|Sazonalização|Modulação) diferente|^A aderência ao produto do cliente é diferente/;
-    for (const t of cmp.atencao.filter((x) => !jaNaTabela.test(x))) {
+    for (const t of narrativa ? narrativa.atencao : cmp.atencao.filter((x) => !jaNaTabela.test(x))) {
       const ls = doc.splitTextToSize(s(t), util - 8) as string[];
       if (yc + ls.length * 4 > alt - 18) {
         yc = novaPagina();
@@ -1053,7 +1056,7 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
     yc += 3;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    const linhasPasso = doc.splitTextToSize(s(cmp.proximoPasso), util - 10) as string[];
+    const linhasPasso = doc.splitTextToSize(s(narrativa?.proximoPasso ?? cmp.proximoPasso), util - 10) as string[];
     const hPasso = linhasPasso.length * 4 + 14;
     if (yc + hPasso > alt - 18) yc = novaPagina();
     cartaoBase(doc, MARGEM, yc, util, hPasso, VERDE, VERDE_CLARO);
