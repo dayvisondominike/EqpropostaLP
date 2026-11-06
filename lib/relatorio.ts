@@ -640,12 +640,24 @@ function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lid
     doc.setDrawColor(...AZUL);
     doc.setLineWidth(0.5);
     doc.setLineDashPattern([0.8, 1.4], 0);
-    doc.line(gx, py(refPreco), gx + gw, py(refPreco));
+    doc.line(gx, py(refPreco), gx + gw + 2, py(refPreco));
     doc.setLineDashPattern([], 0);
+    // Rótulo na faixa à direita do gráfico (igual ao da Média i5 Spot), fora das curvas; se as duas
+    // linhas ficarem próximas, o rótulo do 1º é afastado para não sobrepor o da média.
+    const dist = py(refPreco) - py(mediaI5);
+    const dy = Math.abs(dist) < 11 ? (dist <= 0 ? -1 : 1) * (11 - Math.abs(dist)) : 0;
+    const yr = py(refPreco) + dy;
+    const nome = String(lider.Fornecedor);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(6.5);
+    doc.setFontSize(6.3);
+    doc.setTextColor(...CINZA);
+    doc.text("1º no RANK", gx + gw + 3.5, yr - 0.8);
+    doc.setFontSize(7.8);
     doc.setTextColor(...AZUL);
-    doc.text(`1º no RANK (${lider.Fornecedor}): ${num2(refPreco)}`, gx + gw, py(refPreco) - 1.4, { align: "right" });
+    doc.text(moeda(refPreco), gx + gw + 3.5, yr + 3.6);
+    doc.setFontSize(5.5);
+    doc.setTextColor(...CINZA);
+    doc.text(nome.length > 18 ? `${nome.slice(0, 16)}..` : nome, gx + gw + 3.5, yr + 6.8);
   }
 
   // Linha da média i5 Spot do período (mesma da tela)
