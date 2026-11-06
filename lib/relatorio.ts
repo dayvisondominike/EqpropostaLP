@@ -2,6 +2,7 @@ import type { jsPDF } from "jspdf";
 import { LOGO_30_ANOS, LOGO_30_ANOS_PROPORCAO } from "./logo30";
 import type { DadosPld } from "./ccee";
 import type { LinhaRanking, Pesos, Resultado } from "./types";
+import { comparar } from "./comparativo";
 
 type RGB = [number, number, number];
 
@@ -896,6 +897,174 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
       45,
       passoVpl,
     );
+  }
+
+  // Comparativo do 1º e do 2º no RANK (mesmo conteúdo da aba Comparação, em versão para decisão).
+  const topo2 = (resultado.memoria ?? [])
+    .filter((m) => m.calculo && typeof m.Rank === "number")
+    .sort((p, q) => (p.Rank as number) - (q.Rank as number))
+    .slice(0, 2);
+  const cmp = topo2.length === 2 ? comparar(resultado, topo2[0], topo2[1]) : null;
+  if (cmp) {
+    const [mA, mB] = topo2;
+    const dec = (v: number, casas = 1) => v.toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas });
+    // A fonte do PDF não tem o sinal "−" (U+2212): ele estraga o espaçamento da linha inteira; usa-se o hífen.
+    const s = (t: string) => t.replace(/−/g, "-");
+    // Diferença do 1º para o 2º em palavras ("a menos" = o 1º é mais barato), sem sinais para não confundir.
+    const aMenos = (dif: number, fmt: (v: number) => string) => (dif > 0.005 ? `${fmt(dif)} a menos` : dif < -0.005 ? `${fmt(-dif)} a mais` : "igual");
+    const reais0 = (v: number) => `R$ ${v.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
+    const novaPagina = (titulo = "1º × 2º no RANK (continuação)") => {
+      doc.addPage();
+      cabecalhoPagina(c, "Decisão", titulo);
+      return 46;
+    };
+    doc.addPage();
+    cabecalhoPagina(c, "Decisão", "1º × 2º no RANK");
+    let yc = 44;
+
+    // Conclusão em uma frase.
+    tituloSecao(doc, "Em resumo", yc);
+    yc += 4;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    const linhasResumo = doc.splitTextToSize(s(cmp.resumo), util - 10) as string[];
+    const hResumo = linhasResumo.length * 4 + 11;
+    cartaoBase(doc, MARGEM, yc, util, hResumo, AMARELO, AMARELO_CLARO);
+    doc.setTextColor(31, 45, 43);
+    doc.text(linhasResumo, MARGEM + 5, yc + 10, { lineHeightFactor: 1.25 });
+    yc += hResumo + 6;
+
+    // Quem é quem e os números do período.
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...VERDE);
+    doc.text(cortarTexto(doc, `1º no RANK: ${mA.Fornecedor}   ·   2º no RANK: ${mB.Fornecedor}`, util), MARGEM, yc + 2);
+    yc += 6;
+    const wk = (util - 12) / 4;
+    const econ = cmp.totalB.valor - cmp.totalA.valor; // > 0: o 1º é mais barata
+    const pctEcon = cmp.totalB.valor > 0 && cmp.totalA.valor > 0 ? (econ / Math.max(cmp.totalA.valor, cmp.totalB.valor)) * 100 : 0;
+    cartaoResumo(doc, MARGEM, yc, wk, moeda(cmp.totalA.media), "PREÇO MÉDIO DO 1º (R$/MWh)", true);
+    cartaoResumo(doc, MARGEM + (wk + 4), yc, wk, moeda(cmp.totalB.media), "PREÇO MÉDIO DO 2º (R$/MWh)");
+    const maisBarato = econ >= 0;
+    cartaoResumo(doc, MARGEM + 2 * (wk + 4), yc, wk, reais0(Math.abs(econ)), maisBarato ? "1º É MAIS BARATO NO PERÍODO" : "1º É MAIS CARO NO PERÍODO");
+    cartaoResumo(doc, MARGEM + 3 * (wk + 4), yc, wk, `${dec(Math.abs(pctEcon))}%`, maisBarato ? "ECONOMIA DO 1º (%)" : "ACRÉSCIMO DO 1º (%)");
+    yc += 29;
+
+    const estiloTabela = {
+      theme: "plain" as const,
+      headStyles: { fillColor: VERDE, textColor: 255, fontStyle: "bold" as const, lineColor: AMARELO_TABELA, lineWidth: { bottom: 0.8 } as never },
+      styles: { fontSize: 7.5, cellPadding: 1.8, lineColor: BORDA, lineWidth: { bottom: 0.2 } as never, overflow: "linebreak" as const },
+      margin: { left: MARGEM, right: MARGEM, top: 40, bottom: 20 },
+    };
+
+    // Preço ano a ano.
+    if (yc + 14 + cmp.anos.length * 6.5 > alt - 18) yc = novaPagina();
+    tituloSecao(doc, "Preço ano a ano", yc);
+    autoTable(doc, {
+      ...estiloTabela,
+      startY: yc + 3,
+      head: [["Ano", "1º (R$/MWh)", "2º (R$/MWh)", "1º em relação ao 2º (R$/MWh)", "1º em relação ao 2º no ano"]],
+      body: [
+        ...cmp.anos.map((x) => [String(x.ano), num2(x.precoA), num2(x.precoB), aMenos(x.precoB - x.precoA, num2), aMenos(x.valorB - x.valorA, reais0)]),
+        ["Período", num2(cmp.totalA.media), num2(cmp.totalB.media), aMenos(cmp.totalB.media - cmp.totalA.media, num2), aMenos(econ, reais0)],
+      ],
+      columnStyles: { 0: { cellWidth: 24, fontStyle: "bold" }, 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" } },
+      didParseCell: (d) => {
+        if (d.section === "head" && d.column.index > 0) d.cell.styles.halign = "right";
+        if (d.section === "body" && d.row.index === cmp.anos.length) {
+          d.cell.styles.fillColor = AMARELO_CLARO;
+          d.cell.styles.fontStyle = "bold";
+        }
+      },
+    });
+    yc = finalY() + 8;
+
+    // Pontos por critério (7 critérios + total).
+    if (yc + 14 + (cmp.pontos.length + 2) * 5.6 > alt - 18) yc = novaPagina();
+    tituloSecao(doc, "Pontos por critério", yc);
+    const linhasPontos = [
+      ...cmp.pontos.map((p) => ({ nome: s(p.rotulo), a: p.a, b: p.b })),
+      { nome: "Pontuação total", a: mA.Pontuação ?? 0, b: mB.Pontuação ?? 0 },
+    ];
+    autoTable(doc, {
+      ...estiloTabela,
+      startY: yc + 3,
+      head: [["Critério", cortarTexto(doc, `1º — ${mA.Fornecedor}`, 60), cortarTexto(doc, `2º — ${mB.Fornecedor}`, 60)]],
+      body: linhasPontos.map((p) => [p.nome, dec(p.a, 2), dec(p.b, 2)]),
+      columnStyles: { 0: { cellWidth: 62 }, 1: { halign: "right" }, 2: { halign: "right" } },
+      didParseCell: (d) => {
+        if (d.section === "head" && d.column.index > 0) d.cell.styles.halign = "right";
+        if (d.section !== "body") return;
+        const p = linhasPontos[d.row.index];
+        if (d.row.index === linhasPontos.length - 1) {
+          d.cell.styles.fillColor = AMARELO_CLARO;
+          d.cell.styles.fontStyle = "bold";
+        } else if ((d.column.index === 1 && p.a > p.b + 0.005) || (d.column.index === 2 && p.b > p.a + 0.005)) {
+          d.cell.styles.fontStyle = "bold";
+          d.cell.styles.textColor = VERDE;
+        }
+      },
+    });
+    yc = finalY() + 8;
+
+    // Condições comerciais que diferem entre as duas.
+    const diferentes = cmp.condicoes.filter((x) => x.diferente);
+    // Página 2 do comparativo: o que conferir antes de decidir (condições, pontos de atenção e próximo passo).
+    yc = novaPagina("Condições e Pontos de Atenção");
+    tituloSecao(doc, "Condições que diferem", yc);
+    if (diferentes.length > 0) {
+      autoTable(doc, {
+        ...estiloTabela,
+        startY: yc + 3,
+        head: [["Condição", cortarTexto(doc, `1º — ${mA.Fornecedor}`, 60), cortarTexto(doc, `2º — ${mB.Fornecedor}`, 60)]],
+        body: diferentes.map((x) => [x.item, s(x.a ?? "não informado"), s(x.b ?? "não informado")]),
+        columnStyles: { 0: { cellWidth: 42, fontStyle: "bold" } },
+      });
+      yc = finalY() + 8;
+    } else {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(...CINZA);
+      doc.text("As condições comerciais informadas são iguais nas duas propostas.", MARGEM, yc + 7);
+      yc += 14;
+    }
+
+    // Pontos de atenção e próximo passo.
+    if (yc + 24 > alt - 18) yc = novaPagina();
+    tituloSecao(doc, "Pontos de atenção", yc);
+    yc += 7;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    // Flexibilidade, sazonalização, modulação e aderência diferentes já aparecem na tabela acima.
+    const jaNaTabela = /^(Flexibilidade|Sazonalização|Modulação) diferente|^A aderência ao produto do cliente é diferente/;
+    for (const t of cmp.atencao.filter((x) => !jaNaTabela.test(x))) {
+      const ls = doc.splitTextToSize(s(t), util - 8) as string[];
+      if (yc + ls.length * 4 > alt - 18) {
+        yc = novaPagina();
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8.5);
+      }
+      doc.setFillColor(...AMARELO);
+      doc.circle(MARGEM + 1.2, yc - 1, 0.9, "F");
+      doc.setTextColor(31, 45, 43);
+      doc.text(ls, MARGEM + 5, yc, { lineHeightFactor: 1.2 });
+      yc += ls.length * 4 + 1.6;
+    }
+    yc += 3;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    const linhasPasso = doc.splitTextToSize(s(cmp.proximoPasso), util - 10) as string[];
+    const hPasso = linhasPasso.length * 4 + 14;
+    if (yc + hPasso > alt - 18) yc = novaPagina();
+    cartaoBase(doc, MARGEM, yc, util, hPasso, VERDE, VERDE_CLARO);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...VERDE);
+    doc.text("Próximo passo", MARGEM + 5, yc + 10);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(31, 45, 43);
+    doc.text(linhasPasso, MARGEM + 5, yc + 15, { lineHeightFactor: 1.25 });
   }
 
   // Página 3: tabela do ranking e observações
