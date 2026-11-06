@@ -292,7 +292,10 @@ def _client():
         return None
     if _client_cache is None:
         try:
-            _client_cache = anthropic.Anthropic()
+            # Mais tentativas automáticas que o padrão (2) para erros temporários (rede, 429, 5xx; o SDK
+            # espera entre elas) e um teto por chamada abaixo do maxDuration da função (300 s), para uma
+            # chamada travada não derrubar a função inteira. Uma extração normal leva ~1-2,5 min.
+            _client_cache = anthropic.Anthropic(max_retries=4, timeout=240.0)
         except Exception:
             return None
     return _client_cache

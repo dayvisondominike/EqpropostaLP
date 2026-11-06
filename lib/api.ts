@@ -55,6 +55,8 @@ export type RespostaFornecedor = {
   dados: Proposta;
   /** Presente quando o PDF traz mais de um produto: uma proposta por produto (com "Produto" e a data de cada um). */
   opcoes?: Proposta[];
+  /** Quando a origem não é a LLM: por que ela não valeu (ex.: "Falha na API: ..."). */
+  motivo?: string;
 };
 
 export const extrairFornecedor = (fornecedor: string, urls: string[]) =>

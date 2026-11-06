@@ -352,7 +352,12 @@ export default function Home() {
             // Tempo da extração (ou "cache", quando o resultado já estava guardado), vindo do log do servidor.
             const ev = r.eventos?.find((e) => e["Tempo (s)"] && e["Tempo (s)"] !== "—");
             const tempo = !ev ? "" : ev.Origem?.startsWith("Cache") ? " · cache" : ` · ${ev["Tempo (s)"].replace(".", ",")} s`;
-            atualizar(f.id, { estado: "concluido", detalhe: `${r.origem}${tempo}${r.opcoes && r.opcoes.length > 1 ? ` · ${r.opcoes.length} produtos` : ""}` });
+            if (r.origem === "Sem dados") {
+              // Não bastava seguir com a linha "sem dados": avisa o motivo e orienta a tentar de novo (o que já foi extraído vem do cache).
+              atualizar(f.id, { estado: "erro", detalhe: `não consegui ler os dados${r.motivo ? ` (${r.motivo})` : ""} — processe de novo para tentar outra vez` });
+            } else {
+              atualizar(f.id, { estado: "concluido", detalhe: `${r.origem}${r.origem === "Regex" ? " (LLM indisponível)" : ""}${tempo}${r.opcoes && r.opcoes.length > 1 ? ` · ${r.opcoes.length} produtos` : ""}` });
+            }
           } catch (e) {
             atualizar(f.id, { estado: "erro", detalhe: (e as Error).message });
           }

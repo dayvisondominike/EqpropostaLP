@@ -123,6 +123,12 @@ def extrair_fornecedor(nome: str, urls: list) -> dict:
                 "Validade da Proposta": "Extração indisponível (LLM e regex falharam) - sem dados para equalizar",
             }
         resposta = {"pasta": nome, "origem": origem, "eventos": list(extrair_llm.EVENTOS), "dados": _json_seguro(dados)}
+        if origem != "LLM":
+            # Por que a LLM não valeu (ex.: "Falha na API: ..."), para a tela avisar em vez de seguir calada.
+            resposta["motivo"] = next(
+                (str(e.get("Detalhe")) for e in extrair_llm.EVENTOS if e.get("Origem") == "Regex" and e.get("Detalhe")),
+                "",
+            )
         if lista and len(lista) > 1:
             # Vários produtos no mesmo PDF: uma proposta por produto (a escolha por período e data é feita em consolidar).
             resposta["opcoes"] = _json_seguro(lista)
