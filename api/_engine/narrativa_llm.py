@@ -26,7 +26,7 @@ except ImportError:  # sem pydantic o módulo fica inerte (ver extrair_llm)
         return None
 
 # Muda quando o prompt ou o formato mudarem: invalida os textos guardados.
-PROMPT_VERSION = "n1"
+PROMPT_VERSION = "n2"
 
 MAX_TOPICOS = 4
 MAX_ATENCAO = 4
@@ -36,7 +36,6 @@ class NarrativaLLM(BaseModel):
     destaque: str = Field(description="Uma linha com a conclusão.")
     topicos: List[str] = Field(description="2 a 4 tópicos curtos do resumo.")
     atencao: List[str] = Field(description="2 a 4 pontos de atenção, cada um começando por 'Palavra-chave:'.")
-    proximo_passo: str = Field(description="Uma frase com a ação concreta.")
 
 
 SYSTEM_PROMPT = """Você redige o resumo executivo de uma comparação entre as duas melhores propostas de energia \
@@ -63,8 +62,7 @@ Senão: "Maior pontuação no RANK: {1º}. Menor preço: {mais barata}."
   Se o 1º for também o mais barato, escreva só o tópico de custo e, se houver, um sobre onde ele também é melhor.
 - atencao (2 a 4): cada item começa com uma palavra-chave e dois pontos ("Validade:", "Garantia:", "Flexibilidade:"...). \
 Ordem de importância: validade/proposta firme primeiro. Cubra os "alertas_das_regras" relevantes, juntando itens \
-iguais das duas propostas num só. Não repita o que já está nos tópicos.
-- proximo_passo: uma frase com a ação concreta e quem/o quê (ex.: pedir proposta firme com validade e garantia)."""
+iguais das duas propostas num só. Não repita o que já está nos tópicos. Não escreva um "próximo passo"."""
 
 _SYSTEM_CACHEADO = [{"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}]
 
@@ -86,15 +84,14 @@ def validar(texto: dict, fatos: dict) -> str:
     destaque = str(texto.get("destaque") or "").strip()
     topicos = [str(t).strip() for t in texto.get("topicos") or [] if str(t).strip()]
     atencao = [str(t).strip() for t in texto.get("atencao") or [] if str(t).strip()]
-    passo = str(texto.get("proximo_passo") or "").strip()
-    if not destaque or not passo:
-        return "destaque ou próximo passo vazio"
+    if not destaque:
+        return "destaque vazio"
     if not (1 <= len(topicos) <= MAX_TOPICOS):
         return f"{len(topicos)} tópicos (esperado 1 a {MAX_TOPICOS})"
     if not (1 <= len(atencao) <= MAX_ATENCAO):
         return f"{len(atencao)} pontos de atenção (esperado 1 a {MAX_ATENCAO})"
     permitidos = _numeros(json.dumps(fatos, ensure_ascii=False)) | {"1", "2"}  # 1º e 2º
-    for trecho in [destaque, passo, *topicos, *atencao]:
+    for trecho in [destaque, *topicos, *atencao]:
         extras = _numeros(trecho) - permitidos
         if extras:
             return f"número fora dos fatos: {sorted(extras)[:3]} em “{trecho[:60]}”"
@@ -124,7 +121,7 @@ def _gerar(fatos: dict, tentativa: int):
     ell._registrar("Narrativa", f"API ({ell.MODEL_ID})", resp, detalhe=f"tentativa {tentativa}", segundos=seg)
     return {
         "destaque": out.destaque, "topicos": list(out.topicos),
-        "atencao": list(out.atencao), "proximo_passo": out.proximo_passo,
+        "atencao": list(out.atencao),
     }
 
 

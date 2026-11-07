@@ -69,9 +69,9 @@ export async function narrativaDoComparativo(resultado: Resultado, limiteMs = 12
       signal: controle.signal,
     });
     if (!resp.ok) return undefined;
-    const j = (await resp.json()) as { destaque?: string; topicos?: string[]; atencao?: string[]; proximo_passo?: string };
-    if (!j.destaque || !j.topicos?.length || !j.atencao?.length || !j.proximo_passo) return undefined;
-    return { resumo: { destaque: j.destaque, topicos: j.topicos }, atencao: j.atencao, proximoPasso: j.proximo_passo };
+    const j = (await resp.json()) as { destaque?: string; topicos?: string[]; atencao?: string[] };
+    if (!j.destaque || !j.topicos?.length || !j.atencao?.length) return undefined;
+    return { resumo: { destaque: j.destaque, topicos: j.topicos }, atencao: j.atencao };
   } catch {
     return undefined;
   } finally {

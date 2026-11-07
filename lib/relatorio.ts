@@ -790,7 +790,6 @@ export type Narrativa = {
   /** Texto corrido, ou uma frase de destaque (a conclusão) seguida de tópicos curtos. */
   resumo: string | { destaque: string; topicos: string[] };
   atencao: string[];
-  proximoPasso: string;
 };
 
 export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMercado, narrativa?: Narrativa) {
@@ -1093,21 +1092,6 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
       doc.text(ls, MARGEM + 5, yc, { lineHeightFactor: 1.2 });
       yc += ls.length * 4 + 1.6;
     }
-    yc += 3;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    const linhasPasso = doc.splitTextToSize(s(narrativa?.proximoPasso ?? cmp.proximoPasso), util - 10) as string[];
-    const hPasso = linhasPasso.length * 4 + 14;
-    if (yc + hPasso > alt - 18) yc = novaPagina();
-    cartaoBase(doc, MARGEM, yc, util, hPasso, VERDE, VERDE_CLARO);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
-    doc.setTextColor(...VERDE);
-    doc.text("Próximo passo", MARGEM + 5, yc + 10);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(31, 45, 43);
-    doc.text(linhasPasso, MARGEM + 5, yc + 15, { lineHeightFactor: 1.25 });
   }
 
   // Página 3: tabela do ranking e observações
