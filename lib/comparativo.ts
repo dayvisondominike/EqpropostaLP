@@ -20,7 +20,6 @@ export type Comparacao = {
   pontos: { chave: keyof Pesos; rotulo: string; a: number; b: number }[];
   condicoes: LinhaCondicao[];
   atencao: string[];
-  proximoPasso: string;
 };
 
 type Prop = Record<string, unknown>;
@@ -180,6 +179,5 @@ export function comparar(resultado: Resultado, a: MemoriaProposta, b: MemoriaPro
     anos, totalA, totalB,
     resumo: `${frasePreco}${frasePontos}`,
     pontos, condicoes, atencao,
-    proximoPasso: `Pedir à ${nomeA} e à ${nomeB} uma proposta firme, com prazo de validade, e esclarecer os itens em aberto acima (garantia, tributos e demais condições) antes de decidir.`,
   };
 }

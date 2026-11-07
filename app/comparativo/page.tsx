@@ -183,9 +183,6 @@ export default function Comparativo() {
                 <ol className="atencao">{cmp.atencao.map((t, i) => <li key={i}>{t}</li>)}</ol>
               )}
             </div>
-
-            <div className="secao">5. Próximo passo</div>
-            <div className="cartao"><p style={{ margin: 0, lineHeight: 1.6 }}>{cmp.proximoPasso}</p></div>
           </>
         )}
       </main>

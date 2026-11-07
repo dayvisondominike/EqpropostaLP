@@ -1051,7 +1051,7 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
 
     // Condições comerciais que diferem entre as duas.
     const diferentes = cmp.condicoes.filter((x) => x.diferente);
-    // Página 2 do comparativo: o que conferir antes de decidir (condições, pontos de atenção e próximo passo).
+    // Página 2 do comparativo: o que conferir antes de decidir (condições e pontos de atenção).
     yc = novaPagina("Condições e Pontos de Atenção");
     tituloSecao(doc, "Condições que diferem", yc);
     if (diferentes.length > 0) {
@@ -1071,7 +1071,7 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
       yc += 14;
     }
 
-    // Pontos de atenção e próximo passo.
+    // Pontos de atenção.
     if (yc + 24 > alt - 18) yc = novaPagina();
     tituloSecao(doc, "Pontos de atenção", yc);
     yc += 7;
