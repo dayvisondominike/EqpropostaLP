@@ -786,7 +786,12 @@ function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lid
 
 /** Gera o relatório de equalização em PDF (retrato) no navegador e dispara o download. */
 /** Textos das páginas do comparativo 1º × 2º. Sem eles, valem os textos das regras fixas (lib/comparativo.ts). */
-export type Narrativa = { resumo: string; atencao: string[]; proximoPasso: string };
+export type Narrativa = {
+  /** Texto corrido, ou uma frase de destaque (a conclusão) seguida de tópicos curtos. */
+  resumo: string | { destaque: string; topicos: string[] };
+  atencao: string[];
+  proximoPasso: string;
+};
 
 export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMercado, narrativa?: Narrativa) {
   const { jsPDF: JsPdf } = await import("jspdf");
@@ -937,13 +942,39 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
     // Conclusão em uma frase.
     tituloSecao(doc, "Em resumo", yc);
     yc += 4;
+    const resumo = narrativa?.resumo ?? cmp.resumo;
+    const corrido = typeof resumo === "string";
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    const linhasDestaque = corrido ? [] : (doc.splitTextToSize(s(resumo.destaque), util - 10) as string[]);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    const linhasResumo = doc.splitTextToSize(s(narrativa?.resumo ?? cmp.resumo), util - 10) as string[];
-    const hResumo = linhasResumo.length * 4 + 11;
+    const linhasCorrido = corrido ? (doc.splitTextToSize(s(resumo), util - 10) as string[]) : [];
+    const linhasTopicos = corrido ? [] : resumo.topicos.map((t) => doc.splitTextToSize(s(t), util - 17) as string[]);
+    const hResumo =
+      11 + linhasCorrido.length * 4 + linhasDestaque.length * 4.6 + (linhasDestaque.length ? 2 : 0) +
+      linhasTopicos.reduce((a, l) => a + l.length * 4 + 1.6, 0);
     cartaoBase(doc, MARGEM, yc, util, hResumo, AMARELO, AMARELO_CLARO);
     doc.setTextColor(31, 45, 43);
-    doc.text(linhasResumo, MARGEM + 5, yc + 10, { lineHeightFactor: 1.25 });
+    let yr = yc + 10;
+    if (corrido) {
+      doc.text(linhasCorrido, MARGEM + 5, yr, { lineHeightFactor: 1.25 });
+    } else {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(...VERDE);
+      doc.text(linhasDestaque, MARGEM + 5, yr, { lineHeightFactor: 1.25 });
+      yr += linhasDestaque.length * 4.6 + 2;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(31, 45, 43);
+      linhasTopicos.forEach((l) => {
+        doc.setFillColor(...AMARELO);
+        doc.circle(MARGEM + 6.4, yr - 1, 0.9, "F");
+        doc.text(l, MARGEM + 10, yr, { lineHeightFactor: 1.25 });
+        yr += l.length * 4 + 1.6;
+      });
+    }
     yc += hResumo + 6;
 
     // Quem é quem e os números do período.
