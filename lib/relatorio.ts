@@ -815,8 +815,8 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
     y += 4;
     const w4 = (util - 12) / 4;
     cartaoResumo(doc, MARGEM, y, w4, lider.Fornecedor, "1º COLOCADO NO RANK", true);
-    cartaoResumo(doc, MARGEM + (w4 + 4), y, w4, moeda(lider["VPL (R$)"]), "VPL DO 1º COLOCADO NO RANK");
-    cartaoResumo(doc, MARGEM + 2 * (w4 + 4), y, w4, moeda(lider["Preço Médio (R$/MWh)"]), "PREÇO MÉDIO DO 1º COLOCADO NO RANK");
+    cartaoResumo(doc, MARGEM + (w4 + 4), y, w4, moeda(lider["VPL (R$)"]), "VPL DO 1º NO RANK");
+    cartaoResumo(doc, MARGEM + 2 * (w4 + 4), y, w4, moeda(lider["Preço Médio (R$/MWh)"]), "PREÇO MÉDIO DO 1º NO RANK");
     cartaoResumo(doc, MARGEM + 3 * (w4 + 4), y, w4, String(ranking.length), "PROPOSTAS RECEBIDAS");
     y += 31;
   }
