@@ -243,7 +243,16 @@ function cartaoResumo(doc: jsPDF, x: number, y: number, w: number, valor: string
   doc.text(valor, x + 4, y + 13);
   doc.setFontSize(6.2);
   doc.setTextColor(...CINZA);
-  doc.text(rotulo, x + 4, y + 18.5, { charSpace: 0.3, maxWidth: w - 8 });
+  // O espaçamento entre letras (charSpace) alarga o texto sem o maxWidth perceber: reduz o espaçamento e,
+  // se preciso, a fonte até o rótulo caber dentro do cartão.
+  let cs = 0.3, tamR = 6.2;
+  const cabe = () => doc.getTextWidth(rotulo) + cs * rotulo.length <= w - 8;
+  while (!cabe() && cs > 0) cs = Math.max(0, cs - 0.05);
+  while (!cabe() && tamR > 5.2) {
+    tamR -= 0.2;
+    doc.setFontSize(tamR);
+  }
+  doc.text(rotulo, x + 4, y + 18.5, { charSpace: cs, maxWidth: w - 8 });
 }
 
 /** Barras horizontais dentro de um cartão (nome à esquerda, valor dentro da barra). Retorna a altura ocupada. */
