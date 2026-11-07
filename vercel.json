@@ -12,6 +12,7 @@
     { "source": "/api/cliente", "destination": "/api/index.py?rota=cliente" },
     { "source": "/api/extrair", "destination": "/api/index.py?rota=extrair" },
     { "source": "/api/consolidar", "destination": "/api/index.py?rota=consolidar" },
-    { "source": "/api/identificar", "destination": "/api/index.py?rota=identificar" }
+    { "source": "/api/identificar", "destination": "/api/index.py?rota=identificar" },
+    { "source": "/api/narrativa", "destination": "/api/index.py?rota=narrativa" }
   ]
 }

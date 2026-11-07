@@ -18,6 +18,7 @@ from urllib.parse import parse_qs, urlparse
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_engine"))
 
 import engine  # noqa: E402
+import narrativa_llm  # noqa: E402
 from http_util import JsonHandler  # noqa: E402
 
 
@@ -40,11 +41,16 @@ def _consolidar(corpo: dict) -> dict:
     return engine.consolidar(corpo["propostas"], corpo["cliente"], corpo.get("params"), corpo.get("escolhas"))
 
 
+def _narrativa(corpo: dict) -> dict:
+    return narrativa_llm.narrativa(corpo["fatos"])
+
+
 ROTAS = {
     "cliente": _cliente,
     "identificar": _identificar,
     "extrair": _extrair,
     "consolidar": _consolidar,
+    "narrativa": _narrativa,
 }
 
 
