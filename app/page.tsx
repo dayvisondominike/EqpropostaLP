@@ -4,7 +4,7 @@ import MenuAbas from "./MenuAbas";
 import MemoriaCalculo from "./MemoriaCalculo";
 import { useEffect, useMemo, useState } from "react";
 import { lerSpreadSalvo } from "@/lib/ccee";
-import { gerarRelatorioPdf, type DadosMercado } from "@/lib/relatorio";
+import { gerarRelatorioPdf, metricasMercado, type DadosMercado } from "@/lib/relatorio";
 import { narrativaDoComparativo } from "@/lib/narrativa";
 import { abrirEqualizacao, buscarPld, ehArquivoAceito, ehPlanilha, identificarPdf, consolidar, enviarPdf, excluirEqualizacao, extrairCliente, extrairFornecedor, listarEqualizacoes, salvarEqualizacao } from "@/lib/api";
 import type { ResumoEqualizacao } from "@/lib/equalizacoes";
@@ -428,7 +428,7 @@ export default function Home() {
         mercado = { pld: pld.dados, spread: lerSpreadSalvo(), fonte: pld.fonte, atualizadoEm: pld.atualizadoEm };
       } catch { /* PLD indisponível: relatório sem a página PLD × Energia i5 Spot */ }
       // Texto do comparativo 1º × 2º escrito pela LLM (guardado: mesmos dados, mesmo texto); sem ele, valem as regras.
-      const narrativa = await narrativaDoComparativo(r);
+      const narrativa = await narrativaDoComparativo(r, metricasMercado(r, mercado));
       await gerarRelatorioPdf(r, mercado, narrativa);
     } finally {
       setGerandoPdf(false);

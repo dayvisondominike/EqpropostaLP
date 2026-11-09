@@ -1,5 +1,5 @@
 import { comparar } from "./comparativo";
-import type { Narrativa } from "./relatorio";
+import type { MetricasMercado, Narrativa } from "./relatorio";
 import type { Resultado } from "./types";
 
 const n = (v: number, casas = 2) => v.toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas });
@@ -9,7 +9,7 @@ const limpa = (t: string) => t.replace(/−/g, "-"); // a fonte do PDF não tem 
 const reaisCurto = (v: number) => (v >= 10000 ? `R$ ${Math.round(v / 1000).toLocaleString("pt-BR")} mil` : `R$ ${Math.round(v).toLocaleString("pt-BR")}`);
 
 /** Fatos do comparativo 1º × 2º que a LLM pode usar; null se não houver duas propostas calculadas. */
-export function fatosDoComparativo(resultado: Resultado): Record<string, unknown> | null {
+export function fatosDoComparativo(resultado: Resultado, metricas?: MetricasMercado | null): Record<string, unknown> | null {
   const topo = (resultado.memoria ?? [])
     .filter((m) => m.calculo && typeof m.Rank === "number")
     .sort((p, q) => (p.Rank as number) - (q.Rank as number))
@@ -47,7 +47,24 @@ export function fatosDoComparativo(resultado: Resultado): Record<string, unknown
     condicoes_que_diferem: cmp.condicoes
       .filter((c) => c.diferente)
       .map((c) => ({ condicao: c.item, primeiro: c.a ?? "não informado", segundo: c.b ?? "não informado" })),
-    alertas_das_regras: cmp.atencao,
+    periodo_do_contrato: cmp.anos.length === 1 ? `${cmp.anos[0].ano}` : `${cmp.anos[0].ano} a ${cmp.anos[cmp.anos.length - 1].ano}`,
+    condicoes_do_primeiro: {
+      natureza_da_proposta: cmp.condicoes.find((x) => x.item === "Natureza da proposta")?.a ?? "não informada",
+      flexibilidade: cmp.condicoes.find((x) => x.item === "Flexibilidade")?.a ?? "não informada",
+      modulacao: cmp.condicoes.find((x) => x.item === "Modulação")?.a ?? "não informada",
+      garantia: cmp.condicoes.find((x) => x.item === "Garantia")?.a ?? "não informada",
+      aderencia_ao_produto: cmp.condicoes.find((x) => x.item === "Aderência ao produto do cliente")?.a ?? "—",
+    },
+    // Só quando há PLD: distância do preço do 1º até a média do spot i5 no período do gráfico.
+    ...(metricas?.pctVsSpot != null
+      ? {
+          mercado: {
+            media_spot_i5: `R$ ${n(metricas.mediaI5)}/MWh`,
+            diferenca_do_primeiro_para_a_media_spot: `${n(Math.abs(metricas.pctVsSpot), 1)}%`,
+            primeiro_acima_ou_abaixo_do_spot: metricas.pctVsSpot >= 0 ? "acima" : "abaixo",
+          },
+        }
+      : {}),
   })));
 }
 
@@ -56,8 +73,8 @@ export function fatosDoComparativo(resultado: Resultado): Record<string, unknown
  * Qualquer falha (API fora, texto recusado na conferência, demora) devolve undefined e o relatório
  * usa o texto das regras fixas.
  */
-export async function narrativaDoComparativo(resultado: Resultado, limiteMs = 120000): Promise<Narrativa | undefined> {
-  const fatos = fatosDoComparativo(resultado);
+export async function narrativaDoComparativo(resultado: Resultado, metricas?: MetricasMercado | null, limiteMs = 120000): Promise<Narrativa | undefined> {
+  const fatos = fatosDoComparativo(resultado, metricas);
   if (!fatos) return undefined;
   const controle = new AbortController();
   const timer = setTimeout(() => controle.abort(), limiteMs);
@@ -69,9 +86,9 @@ export async function narrativaDoComparativo(resultado: Resultado, limiteMs = 12
       signal: controle.signal,
     });
     if (!resp.ok) return undefined;
-    const j = (await resp.json()) as { destaque?: string; topicos?: string[]; atencao?: string[] };
-    if (!j.destaque || !j.topicos?.length || !j.atencao?.length) return undefined;
-    return { resumo: { destaque: j.destaque, topicos: j.topicos }, atencao: j.atencao };
+    const j = (await resp.json()) as { destaque?: string; topicos?: string[] };
+    if (!j.destaque || !j.topicos?.length) return undefined;
+    return { resumo: { destaque: j.destaque, topicos: j.topicos } };
   } catch {
     return undefined;
   } finally {

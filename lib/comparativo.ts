@@ -31,7 +31,7 @@ const texto = (v: unknown): string | null => {
 };
 
 /** Data "dd/mm/aaaa" (com hora opcional "às 18h" / "18:30") dentro de um texto; null se não houver. */
-function lerData(s: string | null): Date | null {
+export function lerData(s: string | null): Date | null {
   const m = s?.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\D+(\d{1,2})(?::(\d{2}))?\s*h?)?/i);
   if (!m) return null;
   return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]), m[4] ? Number(m[4]) : 23, m[5] ? Number(m[5]) : 59);

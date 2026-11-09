@@ -251,7 +251,10 @@ def avaliar_aderencia(row: dict, cliente: dict):
     modulacao_original = _txt(row["Modulação"])
     modulacao = _normalizar_modulacao(modulacao_original)
     desejada = MODULACAO_DESEJADA.strip()
-    if modulacao.lower() == desejada.lower():
+    if not modulacao_original:
+        # Proposta que não informa a modulação: falta dado, não é divergência (aderente com ressalvas).
+        observacoes.append("Modulação não informada na proposta")
+    elif modulacao.lower() == desejada.lower():
         pass
     elif modulacao == "Carga" and desejada.lower() == "flat":
         # Modulação pela curva de carga cobre também um consumo flat.

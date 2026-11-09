@@ -1,8 +1,8 @@
 import type { jsPDF } from "jspdf";
 import { LOGO_30_ANOS, LOGO_30_ANOS_PROPORCAO } from "./logo30";
 import type { DadosPld } from "./ccee";
-import type { LinhaRanking, Pesos, Resultado } from "./types";
-import { comparar } from "./comparativo";
+import { PESOS_PADRAO, type LinhaRanking, type Pesos, type Resultado } from "./types";
+import { comparar, lerData } from "./comparativo";
 
 type RGB = [number, number, number];
 
@@ -571,7 +571,7 @@ function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lid
   if (periodo.length < 2) return;
 
   doc.addPage();
-  cabecalhoPagina(c, "Cenário de mercado", "PLD × Energia i5 Spot");
+  cabecalhoPagina(c, "Cenário de mercado", "PLD × Energia i5 Spot × 1º no RANK");
 
   const pontos = periodo.map((m) => ({ mes: m, pld: serie[m], i5: serie[m] + mercado.spread }));
   const media = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -770,28 +770,146 @@ function paginaPld(c: Contexto, resultado: Resultado, mercado: DadosMercado, lid
     yt += 20;
   }
 
-  doc.setFont("helvetica", "italic");
-  doc.setFontSize(6.8);
-  doc.setTextColor(...CINZA);
-  const atualiz = mercado.atualizadoEm ? `, atualizado em ${new Date(mercado.atualizadoEm).toLocaleDateString("pt-BR")}` : "";
-  doc.text(
-    doc.splitTextToSize(
-      `Fonte do PLD: ${mercado.fonte}${atualiz}. A Energia i5 Spot é calculada como o PLD médio mensal somado ao spread informado (R$/MWh). Valores históricos de referência; não constituem projeção.`,
-      larg - 2 * MARGEM,
-    ),
-    MARGEM,
-    Math.min(yt, alt - 24),
-  );
+  // "Em linguagem simples": o que a distância até o spot significa para quem decide.
+  const frase = fraseMercado(metricasMercado(resultado, mercado)!, resultado.propostas.find((p) => p.Fornecedor === lider?.Fornecedor)?.["Tipo de Proposta"]);
+  if (frase) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    const ls = doc.splitTextToSize(frase, larg - 2 * MARGEM - 8) as string[];
+    const h = 13 + ls.length * 4.2;
+    const yb = Math.min(yt + 4, alt - 18 - h);
+    doc.setFillColor(...VERDE_CLARO);
+    doc.roundedRect(MARGEM, yb, larg - 2 * MARGEM, h, 2, 2, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...VERDE);
+    doc.text("Em linguagem simples", MARGEM + 4, yb + 6);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(31, 45, 43);
+    doc.text(ls, MARGEM + 4, yb + 11.5, { lineHeightFactor: 1.2 });
+  }
 }
 
-/** Gera o relatório de equalização em PDF (retrato) no navegador e dispara o download. */
-/** Textos das páginas do comparativo 1º × 2º. Sem eles, valem os textos das regras fixas (lib/comparativo.ts). */
+/** Textos do resumo da página "Resumo para decisão". Sem eles, valem os textos das regras fixas (lib/comparativo.ts). */
 export type Narrativa = {
   /** Texto corrido, ou uma frase de destaque (a conclusão) seguida de tópicos curtos. */
   resumo: string | { destaque: string; topicos: string[] };
-  atencao: string[];
 };
 
+// ---------------------------------------------------------------------------------------------
+// Regras do relatório para o decisor
+// ---------------------------------------------------------------------------------------------
+type Dict = Record<string, unknown>;
+
+const VERMELHO: RGB = [196, 48, 62];
+const VERMELHO_CLARO: RGB = [253, 236, 238];
+const OK: RGB = [30, 130, 90];
+const TEXTO: RGB = [31, 45, 43];
+
+const dataCurta = (d: Date) => d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+const dataCompleta = (d: Date) => d.toLocaleDateString("pt-BR");
+/** "EDP - I5 FLEX 100 SEM ENCARGOS" -> "EDP": nome curto do fornecedor para frases. */
+const nomeCurto = (n: string) => n.split(" - ")[0].trim();
+const juntar = (ns: string[]) => (ns.length <= 1 ? (ns[0] ?? "") : `${ns.slice(0, -1).join(", ")} e ${ns[ns.length - 1]}`);
+const vazio = (v: unknown) => v == null || String(v).trim() === "" || ["nan", "none", "null"].includes(String(v).trim().toLowerCase());
+
+export type Validade = { tipo: "vencida" | "valida" | "sem"; data: Date | null; texto: string };
+
+/** Situação da validade da proposta em relação a `hoje`. */
+export function validadeDe(prop: Dict | undefined, hoje: Date): Validade {
+  const bruto = prop?.["Validade da Proposta"];
+  const fim = vazio(bruto) ? null : lerData(String(bruto));
+  if (!fim) return { tipo: "sem", data: null, texto: "Não informada" };
+  return fim < hoje
+    ? { tipo: "vencida", data: fim, texto: `Vencida em ${dataCurta(fim)}` }
+    : { tipo: "valida", data: fim, texto: `Válida até ${dataCurta(fim)}` };
+}
+
+/** Frase da faixa de alerta de validade; null quando nenhuma proposta venceu. */
+export function textoAlertaValidade(itens: { nome: string; rank: number | string; v: Validade }[]): string | null {
+  const vencidas = itens.filter((x) => x.v.tipo === "vencida");
+  if (vencidas.length === 0) return null;
+  const porData = new Map<string, string[]>();
+  for (const x of vencidas) {
+    const k = dataCompleta(x.v.data!);
+    porData.set(k, [...(porData.get(k) ?? []), nomeCurto(x.nome)]);
+  }
+  const partes = [...porData].map(([data, ns]) => `${juntar(ns)} ${ns.length > 1 ? "perderam" : "perdeu"} a validade em ${data}.`);
+  for (const x of itens.filter((i) => i.v.tipo === "valida")) {
+    partes.push(`A ${nomeCurto(x.nome)}${typeof x.rank === "number" ? `, ${x.rank}ª no RANK,` : ""} segue válida até ${dataCompleta(x.v.data!)}.`);
+  }
+  if (vencidas.some((x) => typeof x.rank === "number" && x.rank <= 2)) partes.push("Para fechar com as propostas vencidas é preciso reabertura ou atualização.");
+  return partes.join(" ");
+}
+
+/** O que a proposta não informou (flexibilidade, sazonalização, modulação, volume). */
+export function dadosDe(prop: Dict | undefined): string {
+  const faltam: string[] = [];
+  if (vazio(prop?.["Flexibilidade"])) faltam.push("flexibilidade");
+  if (vazio(prop?.["Sazonalidade"])) faltam.push("sazonalização");
+  if (vazio(prop?.["Modulação"])) faltam.push("modulação");
+  if (prop?.["Volume informado na proposta"] === false) faltam.push("volume");
+  return faltam.length === 0 ? "Completos" : `Faltam ${juntar(faltam)}`;
+}
+
+/** "Vinculante (contrato preliminar) (I5 FLEX 100)" -> "Vinculante"; "Firme" -> "Firme". */
+const tipoCurto = (t: unknown) => {
+  const s = vazio(t) ? "" : String(t);
+  if (/vinculante/i.test(s)) return "Vinculante";
+  if (/firme/i.test(s)) return "Firme";
+  if (/indicativ/i.test(s)) return "Indicativa";
+  return s.split(" (")[0] || "—";
+};
+/** Remove o nome do produto entre parênteses quando há dois grupos: "Vinculante (contrato preliminar) (I5 FLEX 100)". */
+const naturezaLonga = (t: string | null) => (t && /\(.*\).*\(.*\)/.test(t) ? t.replace(/\s*\([^()]*\)\s*$/, "") : t);
+
+const textoOuNao = (v: unknown, feminino = true) => (vazio(v) ? (feminino ? "Não informada" : "Não informado") : String(v));
+
+/** "Jan/27 a dez/2027" -> "jan/2027 a dez/2027". */
+const periodoLegivel = (s: string) => s.replace(/\b([A-Za-zçÇ]{3,9})\/(\d{2,4})\b/g, (_m, mes: string, ano: string) => `${mes.slice(0, 3).toLowerCase()}/${ano.length === 2 ? `20${ano}` : ano}`);
+/** "+-100" -> "±100%". */
+const flexLegivel = (s: string) => {
+  const m = s.trim().match(/^(?:\+\s*\/?\s*-|±)\s*(\d+(?:[.,]\d+)?)\s*%?$/);
+  return m ? `±${m[1].replace(".", ",")}%` : s;
+};
+const volumeLegivel = (s: string) => (/^\d+\.\d+$/.test(s.trim()) ? s.trim().replace(".", ",") : s);
+
+export type MetricasMercado = { mediaI5: number; mediaPld: number; minI5: number; maxI5: number; precoLider: number | null; pctVsSpot: number | null };
+
+/** Média do spot i5 no período do gráfico e a distância do preço do 1º no RANK até ela; null sem dados de PLD. */
+export function metricasMercado(resultado: Resultado, mercado?: DadosMercado): MetricasMercado | null {
+  if (!mercado) return null;
+  const sub = chaveSubmercado(resultado.params.submercado);
+  const serie = mercado.pld[sub] ?? {};
+  const meses = Object.keys(serie).sort();
+  const ate = meses[meses.length - 1];
+  const de = meses.find((m) => m >= "2025-01") ?? meses[0];
+  const periodo = meses.filter((m) => m >= de && m <= ate);
+  if (periodo.length < 2) return null;
+  const pld = periodo.map((m) => serie[m]);
+  const i5 = pld.map((v) => v + mercado.spread);
+  const media = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const mediaI5 = media(i5);
+  const preco = resultado.ranking.find((r) => r.Rank !== "-")?.["Preço Médio (R$/MWh)"] ?? null;
+  return {
+    mediaI5, mediaPld: media(pld), minI5: Math.min(...i5), maxI5: Math.max(...i5),
+    precoLider: preco, pctVsSpot: preco != null && mediaI5 > 0 ? (preco / mediaI5 - 1) * 100 : null,
+  };
+}
+
+const pct1 = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const reaisMil = (v: number) => (v >= 10000 ? `R$ ${Math.round(v / 1000).toLocaleString("pt-BR")} mil` : `R$ ${Math.round(v).toLocaleString("pt-BR")}`);
+
+/** "Em linguagem simples" da página de mercado. */
+function fraseMercado(m: MetricasMercado, tipoLider: unknown): string | null {
+  if (m.precoLider == null || m.pctVsSpot == null) return null;
+  let t = `O preço do 1º (${moeda(m.precoLider)}) é ${pct1(Math.abs(m.pctVsSpot))}% ${m.pctVsSpot >= 0 ? "maior" : "menor"} que a média histórica do spot i5 no período (${moeda(m.mediaI5)}). ` +
+    `O spot oscila mês a mês (de R$ ${inteiro(m.minI5)} a R$ ${inteiro(m.maxI5)} no gráfico).`;
+  if (/firme/i.test(String(tipoLider ?? ""))) t += " A proposta firme fixa o preço.";
+  else if (/indicativ/i.test(String(tipoLider ?? ""))) t += " Esta proposta é indicativa: o preço ainda pode mudar.";
+  return `${t} Valores históricos, sem projeção.`;
+}
+
+/** Gera o relatório de equalização em PDF (retrato) no navegador e dispara o download. */
 export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMercado, narrativa?: Narrativa) {
   const { jsPDF: JsPdf } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
@@ -803,159 +921,84 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
   const lider = ranking.find((r) => r.Rank !== "-");
   const nomeCliente = String(cliente["Razão Social"] ?? "Cliente");
   const c: Contexto = { doc, larg, alt, cliente: nomeCliente };
-  const finalY = () => (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
-  const margem = { left: MARGEM, right: MARGEM, top: 40, bottom: 20 };
-
-  // Página 1: capa
-  capa(c, lider);
-
-  // Página 2: resumo (mesmo formato da tela) e gráficos
-  doc.addPage();
-  cabecalhoPagina(c, "Resultado", "Ranking da Equalização");
   const util = larg - 2 * MARGEM;
-  let y = 46;
-  if (lider) {
-    tituloSecao(doc, "Resumo", y);
-    y += 4;
-    const w4 = (util - 12) / 4;
-    cartaoResumo(doc, MARGEM, y, w4, lider.Fornecedor, "1º COLOCADO NO RANK", true);
-    cartaoResumo(doc, MARGEM + (w4 + 4), y, w4, moeda(lider["VPL (R$)"]), "VPL DO 1º NO RANK");
-    cartaoResumo(doc, MARGEM + 2 * (w4 + 4), y, w4, moeda(lider["Preço Médio (R$/MWh)"]), "PREÇO MÉDIO DO 1º NO RANK");
-    cartaoResumo(doc, MARGEM + 3 * (w4 + 4), y, w4, String(ranking.length), "PROPOSTAS RECEBIDAS");
-    y += 31;
-  }
+  const hoje = new Date();
+  const finalY = () => (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
+  const propDe = (nome: string) => resultado.propostas.find((p) => p.Fornecedor === nome) as Dict | undefined;
+  const estilo = {
+    theme: "plain" as const,
+    headStyles: { fillColor: VERDE, textColor: 255, fontStyle: "bold" as const, lineColor: AMARELO_TABELA, lineWidth: { bottom: 0.8 } as never },
+    styles: {
+      fontSize: 8.5, cellPadding: { top: 3.4, bottom: 3.4, left: 2.4, right: 2.4 }, valign: "middle" as const,
+      lineColor: BORDA, lineWidth: { bottom: 0.2 } as never, overflow: "linebreak" as const,
+    },
+    margin: { left: MARGEM, right: MARGEM, top: 40, bottom: 20 },
+  };
 
-  const propostaLider = resultado.propostas.find((p) => p.Fornecedor === lider?.Fornecedor);
-  const precos = propostaLider
-    ? Object.entries(propostaLider)
-        .map(([k, v]) => ({ m: k.match(/^Preço (\d{4}) /), v }))
-        .filter((x) => x.m && typeof x.v === "number")
-        .map((x) => ({ ano: x.m![1], preco: x.v as number }))
-    : [];
-  const comPreco = ranking.filter((r) => r["Preço Médio (R$/MWh)"] != null);
-  const itensPreco = comPreco.map((r) => ({ nome: r.Fornecedor, valor: r["Preço Médio (R$/MWh)"] as number, lider: r.Rank === lider?.Rank }));
-
-  // Linha de gráficos: curva de preço do 1º colocado (esquerda) e preço médio por proposta (direita).
-  const duplo = lider !== undefined && precos.length > 0;
-  const wCart = duplo ? (util - 4) / 2 : util;
-  const xDir = duplo ? MARGEM + wCart + 4 : MARGEM;
-  const topoBarras = 15;
-  const passoPreco = Math.max(3.8, Math.min(6.4, (alt - 16 - y - topoBarras - 4) / Math.max(1, itensPreco.length)));
-  // Altura mínima para o gráfico de colunas da curva não ficar achatado quando há poucas propostas (limitada ao espaço da página).
-  const hMinCurva = duplo ? Math.min(56, alt - 16 - y - 4) : 0;
-  const hCart = Math.max(topoBarras + itensPreco.length * passoPreco + 4, hMinCurva);
-
-  if (duplo) {
-    cartaoBase(doc, MARGEM, y, wCart, hCart, VERDE);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
-    doc.setTextColor(...VERDE);
-    doc.text(cortarTexto(doc, `Curva de preço do 1º no RANK — ${lider!.Fornecedor}`, wCart - 8), MARGEM + 4, y + 10);
-    colunasPorAno(doc, MARGEM + 6, y + 16, wCart - 12, Math.min(40, hCart - 28), precos);
-  }
-  cartaoBase(doc, xDir, y, wCart, hCart, VERDE);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.5);
-  doc.setTextColor(...VERDE);
-  doc.text("Preço médio por proposta (R$/MWh)", xDir + 4, y + 10);
-  barrasCartao(doc, xDir + 4, y + topoBarras - 1, wCart - 8, itensPreco, num2, duplo ? 33 : 45, passoPreco);
-  y += hCart + 6;
-
-  // Pontuação por proposta (0 a 100), empilhada por critério, em cartão de largura total; vai para a página seguinte se não couber.
-  // Equalizações salvas antes do log de cálculo não têm os pontos por critério e mostram o VPL.
-  const comPontos = (resultado.memoria ?? []).filter((m) => m.pontos != null && m.Pontuação != null);
-  const comVpl = ranking.filter((r) => r["VPL (R$)"] != null);
-  if (comPontos.length > 0) {
-    const topoPont = 21;
-    const passoPont = Math.max(3.8, Math.min(5.6, (alt - 16 - y - topoPont - 4) / comPontos.length));
-    const hPont = topoPont + comPontos.length * passoPont + 4;
-    if (y + hPont > alt - 16) {
-      doc.addPage();
-      cabecalhoPagina(c, "Resultado", "Pontuação por Proposta");
-      y = 46;
-    }
-    cartaoBase(doc, MARGEM, y, util, hPont, VERDE);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
-    doc.setTextColor(...VERDE);
-    doc.text("Pontuação por proposta (0 a 100) — por critério", MARGEM + 4, y + 10);
-    barrasPontuacao(
-      doc,
-      MARGEM + 4,
-      y + 13,
-      util - 8,
-      comPontos.map((m) => ({ nome: m.Fornecedor, lider: m.Rank === lider?.Rank, pontos: m.pontos!, total: m.Pontuação! })),
-      45,
-      passoPont,
-      topoPont - 14,
-    );
-  } else if (comVpl.length > 0) {
-    // Reduz o espaçamento para o VPL caber na mesma página quando possível.
-    const passoVpl = Math.max(3.8, Math.min(5.6, (alt - 16 - y - topoBarras - 4) / comVpl.length));
-    const hVpl = topoBarras + comVpl.length * passoVpl + 4;
-    if (y + hVpl > alt - 16) {
-      doc.addPage();
-      cabecalhoPagina(c, "Resultado", "VPL por Proposta");
-      y = 46;
-    }
-    cartaoBase(doc, MARGEM, y, util, hVpl, VERDE);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
-    doc.setTextColor(...VERDE);
-    doc.text("VPL por proposta (R$) — menor é melhor", MARGEM + 4, y + 10);
-    barrasCartao(
-      doc,
-      MARGEM + 4,
-      y + topoBarras - 1,
-      util - 8,
-      comVpl.map((r) => ({ nome: r.Fornecedor, valor: r["VPL (R$)"] as number, lider: r.Rank === lider?.Rank })),
-      (v) => v.toLocaleString("pt-BR", { maximumFractionDigits: 0 }),
-      45,
-      passoVpl,
-    );
-  }
-
-  // Comparativo do 1º e do 2º no RANK (mesmo conteúdo da aba Comparação, em versão para decisão).
+  // Comparativo 1º × 2º (mesmos cálculos da aba Comparação).
   const topo2 = (resultado.memoria ?? [])
     .filter((m) => m.calculo && typeof m.Rank === "number")
     .sort((p, q) => (p.Rank as number) - (q.Rank as number))
     .slice(0, 2);
-  const cmp = topo2.length === 2 ? comparar(resultado, topo2[0], topo2[1]) : null;
-  if (cmp) {
-    const [mA, mB] = topo2;
-    const dec = (v: number, casas = 1) => v.toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas });
-    // A fonte do PDF não tem o sinal "−" (U+2212): ele estraga o espaçamento da linha inteira; usa-se o hífen.
-    const s = (t: string) => t.replace(/−/g, "-");
-    // Diferença do 1º para o 2º em palavras ("a menos" = o 1º é mais barato), sem sinais para não confundir.
-    const aMenos = (dif: number, fmt: (v: number) => string) => (dif > 0.005 ? `${fmt(dif)} a menos` : dif < -0.005 ? `${fmt(-dif)} a mais` : "igual");
-    const reais0 = (v: number) => `R$ ${v.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
-    const novaPagina = (titulo = "1º × 2º no RANK (continuação)") => {
-      doc.addPage();
-      cabecalhoPagina(c, "Decisão", titulo);
-      return 46;
-    };
-    doc.addPage();
-    cabecalhoPagina(c, "Decisão", "1º × 2º no RANK");
-    let yc = 44;
+  const cmp = topo2.length === 2 ? comparar(resultado, topo2[0], topo2[1], hoje) : null;
+  const metricas = metricasMercado(resultado, mercado);
 
-    // Conclusão em uma frase.
-    tituloSecao(doc, "Em resumo", yc);
-    yc += 4;
-    const resumo = narrativa?.resumo ?? cmp.resumo;
+  // ---------- Página 1: capa ----------
+  capa(c, lider);
+
+  // ---------- Página 2: resumo para decisão ----------
+  doc.addPage();
+  cabecalhoPagina(c, "Decisão", "Resumo para decisão");
+  let y = 44;
+
+  const situacao = ranking.map((r) => ({ r, p: propDe(r.Fornecedor), v: validadeDe(propDe(r.Fornecedor), hoje) }));
+  const alerta = textoAlertaValidade(situacao.map((x) => ({ nome: x.r.Fornecedor, rank: x.r.Rank, v: x.v })));
+  if (alerta) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    const ls = doc.splitTextToSize(alerta, util - 14) as string[];
+    const hAl = 14 + ls.length * 4.2;
+    doc.setFillColor(...VERMELHO_CLARO);
+    doc.setDrawColor(...VERMELHO);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(MARGEM, y, util, hAl, 2.5, 2.5, "FD");
+    doc.setFillColor(...VERMELHO);
+    doc.roundedRect(MARGEM, y, 2.4, hAl, 1, 1, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(...VERMELHO);
+    doc.text("ATENÇÃO: PROPOSTAS VENCIDAS", MARGEM + 7, y + 7);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...TEXTO);
+    doc.text(ls, MARGEM + 7, y + 12, { lineHeightFactor: 1.25 });
+    y += hAl + 13;
+  }
+
+  // A fonte do PDF não tem o sinal "−" (U+2212): ele desmonta o espaçamento da linha; usa-se o hífen.
+  const semMenos = (t: string) => t.replace(/−/g, "-");
+  const resumoBruto = narrativa?.resumo ?? (cmp ? cmp.resumo : null);
+  const resumo =
+    typeof resumoBruto === "string" ? semMenos(resumoBruto)
+    : resumoBruto ? { destaque: semMenos(resumoBruto.destaque), topicos: resumoBruto.topicos.map(semMenos) }
+    : null;
+  if (lider && resumo) {
+    tituloSecao(doc, "Em resumo", y);
+    y += 4;
     const corrido = typeof resumo === "string";
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
-    const linhasDestaque = corrido ? [] : (doc.splitTextToSize(s(resumo.destaque), util - 10) as string[]);
+    const linhasDestaque = corrido ? [] : (doc.splitTextToSize(resumo.destaque, util - 10) as string[]);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    const linhasCorrido = corrido ? (doc.splitTextToSize(s(resumo), util - 10) as string[]) : [];
-    const linhasTopicos = corrido ? [] : resumo.topicos.map((t) => doc.splitTextToSize(s(t), util - 17) as string[]);
-    const hResumo =
-      11 + linhasCorrido.length * 4 + linhasDestaque.length * 4.6 + (linhasDestaque.length ? 2 : 0) +
-      linhasTopicos.reduce((a, l) => a + l.length * 4 + 1.6, 0);
-    cartaoBase(doc, MARGEM, yc, util, hResumo, AMARELO, AMARELO_CLARO);
-    doc.setTextColor(31, 45, 43);
-    let yr = yc + 10;
+    const linhasCorrido = corrido ? (doc.splitTextToSize(resumo, util - 10) as string[]) : [];
+    const linhasTopicos = corrido ? [] : resumo.topicos.map((t) => doc.splitTextToSize(t, util - 17) as string[]);
+    const hResumo = corrido
+      ? 14 + linhasCorrido.length * 4.2
+      : 14 + linhasDestaque.length * 4.6 + 3 + linhasTopicos.reduce((a, l) => a + l.length * 4.2 + 4.2, 0);
+    cartaoBase(doc, MARGEM, y, util, hResumo, AMARELO, AMARELO_CLARO);
+    doc.setTextColor(...TEXTO);
+    let yr = y + 10;
     if (corrido) {
       doc.text(linhasCorrido, MARGEM + 5, yr, { lineHeightFactor: 1.25 });
     } else {
@@ -963,190 +1006,232 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
       doc.setFontSize(10);
       doc.setTextColor(...VERDE);
       doc.text(linhasDestaque, MARGEM + 5, yr, { lineHeightFactor: 1.25 });
-      yr += linhasDestaque.length * 4.6 + 2;
+      yr += linhasDestaque.length * 4.6 + 6;
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
-      doc.setTextColor(31, 45, 43);
+      doc.setTextColor(...TEXTO);
       linhasTopicos.forEach((l) => {
         doc.setFillColor(...AMARELO);
         doc.circle(MARGEM + 6.4, yr - 1, 0.9, "F");
         doc.text(l, MARGEM + 10, yr, { lineHeightFactor: 1.25 });
-        yr += l.length * 4 + 1.6;
+        yr += l.length * 4.2 + 4.2;
       });
     }
-    yc += hResumo + 6;
+    y += hResumo + 12;
+  }
 
-    // Quem é quem e os números do período.
+  // Indicadores: preço do 1º, economia sobre o 2º no período e distância até o spot i5.
+  if (lider) {
+    const cartoes: [string, string, boolean][] = [
+      [moeda(lider["Preço Médio (R$/MWh)"]), "PREÇO MÉDIO DO 1º (POR MWh)", true],
+    ];
+    if (cmp) {
+      const econ = cmp.totalB.valor - cmp.totalA.valor; // > 0: o 1º é o mais barato
+      const maior = Math.max(cmp.totalA.valor, cmp.totalB.valor);
+      const p = maior > 0 ? (Math.abs(econ) / maior) * 100 : 0;
+      const a0 = cmp.anos[0].ano, a1 = cmp.anos[cmp.anos.length - 1].ano;
+      const per = a0 === a1 ? `${a0}` : `${a0} A ${a1}`;
+      cartoes.push([reaisMil(Math.abs(econ)), econ >= 0 ? `ECONOMIA SOBRE O 2º EM ${per} (${pct1(p)}%)` : `1º É MAIS CARO QUE O 2º EM ${per} (${pct1(p)}%)`, false]);
+    }
+    if (metricas?.pctVsSpot != null) {
+      cartoes.push([`${metricas.pctVsSpot >= 0 ? "+" : "-"}${pct1(Math.abs(metricas.pctVsSpot))}%`, metricas.pctVsSpot >= 0 ? "ACIMA DA MÉDIA SPOT I5" : "ABAIXO DA MÉDIA SPOT I5", false]);
+    }
+    const wk = (util - 4 * (cartoes.length - 1)) / cartoes.length;
+    cartoes.forEach(([v, rot, dest], i) => cartaoResumo(doc, MARGEM + i * (wk + 4), y, wk, v, rot, dest));
+    y += 38;
+  }
+
+  // Situação das propostas (até 5; as demais ficam na página "Todas as propostas").
+  tituloSecao(doc, "Situação das propostas", y);
+  const mostradas = situacao.slice(0, 5);
+  autoTable(doc, {
+    ...estilo,
+    startY: y + 3,
+    head: [["#", "Proposta", "Preço médio", "Pontos", "Tipo", "Validade", "Dados"]],
+    body: mostradas.map((x) => [
+      String(x.r.Rank),
+      x.r.Fornecedor,
+      x.r["Preço Médio (R$/MWh)"] != null ? moeda(x.r["Preço Médio (R$/MWh)"]) : "—",
+      x.r.Pontuação != null ? pct1(x.r.Pontuação) : "—",
+      tipoCurto(x.p?.["Tipo de Proposta"] ?? x.r["Tipo de Proposta"]),
+      x.v.texto,
+      dadosDe(x.p),
+    ]),
+    columnStyles: { 0: { cellWidth: 8, halign: "center" }, 1: { cellWidth: 36 }, 2: { cellWidth: 27, halign: "right" }, 3: { cellWidth: 17, halign: "right" }, 4: { cellWidth: 28 } },
+    didParseCell: (d) => {
+      if (d.section === "head" && (d.column.index === 2 || d.column.index === 3)) d.cell.styles.halign = "right";
+      if (d.section !== "body") return;
+      if (d.row.index === 0) {
+        d.cell.styles.fillColor = AMARELO_CLARO;
+        d.cell.styles.fontStyle = "bold";
+      }
+      if (d.column.index === 5) {
+        const v = mostradas[d.row.index].v;
+        d.cell.styles.fontStyle = "bold";
+        if (v.tipo === "vencida") d.cell.styles.textColor = VERMELHO;
+        else if (v.tipo === "valida") d.cell.styles.textColor = OK;
+      }
+    },
+  });
+  if (situacao.length > mostradas.length) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...CINZA);
+    doc.text(`+ ${situacao.length - mostradas.length} proposta(s) na página "Todas as propostas".`, MARGEM, finalY() + 6);
+  }
+
+  // ---------- Página 3: comparativo 1º × 2º ----------
+  if (cmp) {
+    const [mA, mB] = topo2;
+    doc.addPage();
+    cabecalhoPagina(c, "Decisão", "Comparativo: 1º × 2º");
+    y = 42;
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
+    doc.setFontSize(9);
     doc.setTextColor(...VERDE);
-    doc.text(cortarTexto(doc, `1º no RANK: ${mA.Fornecedor}   ·   2º no RANK: ${mB.Fornecedor}`, util), MARGEM, yc + 2);
-    yc += 6;
-    const wk = (util - 12) / 4;
-    const econ = cmp.totalB.valor - cmp.totalA.valor; // > 0: o 1º é mais barata
-    const pctEcon = cmp.totalB.valor > 0 && cmp.totalA.valor > 0 ? (econ / Math.max(cmp.totalA.valor, cmp.totalB.valor)) * 100 : 0;
-    cartaoResumo(doc, MARGEM, yc, wk, moeda(cmp.totalA.media), "PREÇO MÉDIO DO 1º (R$/MWh)", true);
-    cartaoResumo(doc, MARGEM + (wk + 4), yc, wk, moeda(cmp.totalB.media), "PREÇO MÉDIO DO 2º (R$/MWh)");
-    const maisBarato = econ >= 0;
-    cartaoResumo(doc, MARGEM + 2 * (wk + 4), yc, wk, reais0(Math.abs(econ)), maisBarato ? "1º É MAIS BARATO NO PERÍODO" : "1º É MAIS CARO NO PERÍODO");
-    cartaoResumo(doc, MARGEM + 3 * (wk + 4), yc, wk, `${dec(Math.abs(pctEcon))}%`, maisBarato ? "ECONOMIA DO 1º (%)" : "ACRÉSCIMO DO 1º (%)");
-    yc += 29;
+    doc.text(cortarTexto(doc, `1º ${mA.Fornecedor}   ×   2º ${mB.Fornecedor}`, util), MARGEM, y);
+    y += 11;
 
-    const estiloTabela = {
-      theme: "plain" as const,
-      headStyles: { fillColor: VERDE, textColor: 255, fontStyle: "bold" as const, lineColor: AMARELO_TABELA, lineWidth: { bottom: 0.8 } as never },
-      styles: { fontSize: 7.5, cellPadding: 1.8, lineColor: BORDA, lineWidth: { bottom: 0.2 } as never, overflow: "linebreak" as const },
-      margin: { left: MARGEM, right: MARGEM, top: 40, bottom: 20 },
-    };
-
-    // Preço ano a ano.
-    if (yc + 14 + cmp.anos.length * 6.5 > alt - 18) yc = novaPagina();
-    tituloSecao(doc, "Preço ano a ano", yc);
-    autoTable(doc, {
-      ...estiloTabela,
-      startY: yc + 3,
-      head: [["Ano", "1º (R$/MWh)", "2º (R$/MWh)", "1º em relação ao 2º (R$/MWh)", "1º em relação ao 2º no ano"]],
-      body: [
-        ...cmp.anos.map((x) => [String(x.ano), num2(x.precoA), num2(x.precoB), aMenos(x.precoB - x.precoA, num2), aMenos(x.valorB - x.valorA, reais0)]),
-        ["Período", num2(cmp.totalA.media), num2(cmp.totalB.media), aMenos(cmp.totalB.media - cmp.totalA.media, num2), aMenos(econ, reais0)],
-      ],
-      columnStyles: { 0: { cellWidth: 24, fontStyle: "bold" }, 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" } },
-      didParseCell: (d) => {
-        if (d.section === "head" && d.column.index > 0) d.cell.styles.halign = "right";
-        if (d.section === "body" && d.row.index === cmp.anos.length) {
-          d.cell.styles.fillColor = AMARELO_CLARO;
-          d.cell.styles.fontStyle = "bold";
-        }
-      },
-    });
-    yc = finalY() + 8;
-
-    // Pontos por critério (7 critérios + total).
-    if (yc + 14 + (cmp.pontos.length + 2) * 5.6 > alt - 18) yc = novaPagina();
-    tituloSecao(doc, "Pontos por critério", yc);
-    const linhasPontos = [
-      ...cmp.pontos.map((p) => ({ nome: s(p.rotulo), a: p.a, b: p.b })),
+    // Pontuação por grupo de critérios (somando os pesos de cada grupo).
+    const pesos = params.pesos ?? PESOS_PADRAO;
+    const grupos: { nome: string; chaves: (keyof Pesos)[] }[] = [
+      { nome: "Preço e custo (preço médio e VPL)", chaves: ["preco", "vpl"] },
+      { nome: "Flexibilidade", chaves: ["flex_inferior", "flex_superior"] },
+      { nome: "Sazonalização", chaves: ["sazo_inferior", "sazo_superior"] },
+      { nome: "Modulação", chaves: ["modulacao"] },
+    ];
+    const pt = (m: "a" | "b", chaves: (keyof Pesos)[]) => chaves.reduce((s, k) => s + (cmp.pontos.find((p) => p.chave === k)?.[m] ?? 0), 0);
+    const linhasGrupo = [
+      ...grupos.map((g) => ({
+        nome: `${g.nome} - até ${g.chaves.reduce((s, k) => s + pesos[k], 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}`,
+        a: pt("a", g.chaves), b: pt("b", g.chaves),
+      })),
       { nome: "Pontuação total", a: mA.Pontuação ?? 0, b: mB.Pontuação ?? 0 },
     ];
+    tituloSecao(doc, "Pontuação por grupo", y);
     autoTable(doc, {
-      ...estiloTabela,
-      startY: yc + 3,
-      head: [["Critério", cortarTexto(doc, `1º — ${mA.Fornecedor}`, 60), cortarTexto(doc, `2º — ${mB.Fornecedor}`, 60)]],
-      body: linhasPontos.map((p) => [p.nome, dec(p.a, 2), dec(p.b, 2)]),
-      columnStyles: { 0: { cellWidth: 62 }, 1: { halign: "right" }, 2: { halign: "right" } },
+      ...estilo,
+      startY: y + 3,
+      head: [["Grupo", mA.Fornecedor, mB.Fornecedor]],
+      body: linhasGrupo.map((l) => [l.nome, pct1(l.a), pct1(l.b)]),
+      columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } },
       didParseCell: (d) => {
         if (d.section === "head" && d.column.index > 0) d.cell.styles.halign = "right";
         if (d.section !== "body") return;
-        const p = linhasPontos[d.row.index];
-        if (d.row.index === linhasPontos.length - 1) {
+        const l = linhasGrupo[d.row.index];
+        if (d.row.index === linhasGrupo.length - 1) {
           d.cell.styles.fillColor = AMARELO_CLARO;
           d.cell.styles.fontStyle = "bold";
-        } else if ((d.column.index === 1 && p.a > p.b + 0.005) || (d.column.index === 2 && p.b > p.a + 0.005)) {
+        } else if ((d.column.index === 1 && l.a > l.b + 0.05) || (d.column.index === 2 && l.b > l.a + 0.05)) {
           d.cell.styles.fontStyle = "bold";
           d.cell.styles.textColor = VERDE;
         }
       },
     });
-    yc = finalY() + 8;
+    y = finalY() + 16;
 
-    // Condições comerciais que diferem entre as duas.
-    const diferentes = cmp.condicoes.filter((x) => x.diferente);
-    // Página 2 do comparativo: o que conferir antes de decidir (condições e pontos de atenção).
-    yc = novaPagina("Condições e Pontos de Atenção");
-    tituloSecao(doc, "Condições que diferem", yc);
-    if (diferentes.length > 0) {
-      autoTable(doc, {
-        ...estiloTabela,
-        startY: yc + 3,
-        head: [["Condição", cortarTexto(doc, `1º — ${mA.Fornecedor}`, 60), cortarTexto(doc, `2º — ${mB.Fornecedor}`, 60)]],
-        body: diferentes.map((x) => [x.item, s(x.a ?? "não informado"), s(x.b ?? "não informado")]),
-        columnStyles: { 0: { cellWidth: 42, fontStyle: "bold" } },
-      });
-      yc = finalY() + 8;
-    } else {
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8.5);
-      doc.setTextColor(...CINZA);
-      doc.text("As condições comerciais informadas são iguais nas duas propostas.", MARGEM, yc + 7);
-      yc += 14;
+    // Condições que mudam o risco.
+    const cond = (item: string) => cmp.condicoes.find((x) => x.item === item);
+    const linhasCond: string[][] = [];
+    const natureza = cond("Natureza da proposta");
+    if (natureza?.diferente) linhasCond.push(["Natureza da proposta", naturezaLonga(natureza.a) ?? "não informada", naturezaLonga(natureza.b) ?? "não informada"]);
+    for (const item of ["Flexibilidade", "Sazonalização", "Modulação"]) {
+      const x = cond(item);
+      // Só entra se as duas informaram e diferem: "não informado" já aparece na linha "Dados" da página 2.
+      if (x?.diferente && (item === "Flexibilidade" || (x.a && x.b))) linhasCond.push([item, x.a ?? "não informada", x.b ?? "não informada"]);
     }
-
-    // Pontos de atenção.
-    if (yc + 24 > alt - 18) yc = novaPagina();
-    tituloSecao(doc, "Pontos de atenção", yc);
-    yc += 7;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.5);
-    // Flexibilidade, sazonalização, modulação e aderência diferentes já aparecem na tabela acima.
-    const jaNaTabela = /^(Flexibilidade|Sazonalização|Modulação) diferente|^A aderência ao produto do cliente é diferente/;
-    for (const t of narrativa ? narrativa.atencao : cmp.atencao.filter((x) => !jaNaTabela.test(x))) {
-      const ls = doc.splitTextToSize(s(t), util - 8) as string[];
-      if (yc + ls.length * 4 > alt - 18) {
-        yc = novaPagina();
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8.5);
-      }
-      doc.setFillColor(...AMARELO);
-      doc.circle(MARGEM + 1.2, yc - 1, 0.9, "F");
-      doc.setTextColor(31, 45, 43);
-      doc.text(ls, MARGEM + 5, yc, { lineHeightFactor: 1.2 });
-      yc += ls.length * 4 + 1.6;
+    for (const item of ["Garantia", "Ressarcimento TUSD (R$/MWh)", "Pagamento"]) {
+      const x = cond(item);
+      if (x?.diferente) linhasCond.push([item, x.a ?? "não informado", x.b ?? "não informado"]);
     }
+    linhasCond.push(["Validade", validadeDe(propDe(mA.Fornecedor), hoje).texto, validadeDe(propDe(mB.Fornecedor), hoje).texto]);
+    const lA = ranking.find((r) => r.Fornecedor === mA.Fornecedor), lB = ranking.find((r) => r.Fornecedor === mB.Fornecedor);
+    linhasCond.push(["Aderência ao produto", lA?.["Aderente ao Produto"] ?? "—", lB?.["Aderente ao Produto"] ?? "—"]);
+    tituloSecao(doc, "Condições que mudam o risco", y);
+    autoTable(doc, {
+      ...estilo,
+      startY: y + 3,
+      head: [["Condição", mA.Fornecedor, mB.Fornecedor]],
+      body: linhasCond.map((l) => l.map(semMenos)),
+      columnStyles: { 0: { cellWidth: 38, fontStyle: "bold" } },
+    });
   }
 
-  // Página 3: tabela do ranking e observações
+  // ---------- Página 4: todas as propostas ----------
   doc.addPage();
-  cabecalhoPagina(c, "Detalhamento", "Propostas Equalizadas");
+  cabecalhoPagina(c, "Detalhamento", "Todas as propostas");
+  const paginaIni = doc.getNumberOfPages();
   autoTable(doc, {
+    ...estilo,
     startY: 42,
-    head: [["#", "Fornecedor", "Tipo", "Preço médio", "VPL (R$)", "Pontos", "Aderência"]],
-    body: ranking.map((r) => [
-      String(r.Rank),
-      r.Fornecedor,
-      r["Tipo de Proposta"],
-      num2(r["Preço Médio (R$/MWh)"] ?? 0),
-      (r["VPL (R$)"] ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 }),
-      r.Pontuação != null ? r.Pontuação.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "—",
-      r["Aderente ao Produto"],
-    ]),
-    theme: "plain",
-    headStyles: { fillColor: VERDE, textColor: 255, fontStyle: "bold", lineColor: AMARELO_TABELA, lineWidth: { bottom: 0.8 } as never },
-    styles: { fontSize: 8, cellPadding: 2.2, lineColor: BORDA, lineWidth: { bottom: 0.2 } as never },
-    columnStyles: { 0: { halign: "center", cellWidth: 8 }, 3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "right" } },
+    head: [["#", "Proposta", "Preço médio", "VPL (R$)", "Pontos", "Flexibilidade", "Sazonalidade", "Nº de anos"]],
+    body: ranking.map((r) => {
+      const p = propDe(r.Fornecedor);
+      const m = (resultado.memoria ?? []).find((x) => x.Fornecedor === r.Fornecedor);
+      const anos = m?.calculo?.anos.length ?? Object.keys(p ?? {}).filter((k) => /^Preço \d{4} /.test(k)).length;
+      return [
+        String(r.Rank),
+        r.Fornecedor,
+        r["Preço Médio (R$/MWh)"] != null ? num2(r["Preço Médio (R$/MWh)"]) : "—",
+        r["VPL (R$)"] != null ? r["VPL (R$)"].toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "—",
+        r.Pontuação != null ? pct1(r.Pontuação) : "—",
+        textoOuNao(p?.["Flexibilidade"]),
+        textoOuNao(p?.["Sazonalidade"]),
+        anos > 0 ? String(anos) : "—",
+      ];
+    }),
+    columnStyles: { 0: { cellWidth: 8, halign: "center" }, 1: { cellWidth: 44, fontStyle: "bold" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" }, 7: { halign: "center" } },
     didParseCell: (d) => {
-      if (d.section === "body" && d.row.index === 0 && lider?.Rank === 1) {
-        d.cell.styles.fillColor = AMARELO_CLARO;
-        d.cell.styles.fontStyle = "bold";
-      }
+      if (d.section === "head" && d.column.index >= 2 && d.column.index <= 4) d.cell.styles.halign = "right";
+      if (d.section === "head" && d.column.index === 7) d.cell.styles.halign = "center";
+      if (d.section === "body" && d.row.index === 0 && lider?.Rank === 1) d.cell.styles.fillColor = AMARELO_CLARO;
     },
-    margin: margem,
+    didDrawPage: () => {
+      if (doc.getCurrentPageInfo().pageNumber !== paginaIni) cabecalhoPagina(c, "Detalhamento", "Todas as propostas (continuação)");
+    },
   });
 
-  let yObs = finalY() + 12;
-  if (yObs > alt - 50) {
+  // Como ler este relatório.
+  const pesos = params.pesos ?? PESOS_PADRAO;
+  const n0 = (v: number) => v.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+  const glossario: [string, string][] = [
+    ["RANK", `ordem das propostas pela pontuação de 0 a 100 (preço e custo ${n0(pesos.preco + pesos.vpl)}, flexibilidade ${n0(pesos.flex_inferior + pesos.flex_superior)}, sazonalização ${n0(pesos.sazo_inferior + pesos.sazo_superior)}, modulação ${n0(pesos.modulacao)}).`],
+    ["Preço médio", "média ponderada do preço por MWh nos meses do contrato (R$/MWh)."],
+    ["VPL", `custo total do contrato trazido a valor de hoje, com a taxa de ${n0(params.tma_pct)}% ao ano. Menor é melhor.`],
+    ["Spot i5", "referência de preço de curto prazo da energia incentivada (PLD + spread). Serve de comparação, não é proposta."],
+    ["Firme / Indicativa", "firme pode ser contratada na validade; indicativa é só uma cotação de mercado."],
+    ["Flexibilidade e sazonalização", "quanto o consumo pode variar de mês a mês e dentro do ano, sem penalidade."],
+    ["Modulação", "se a energia segue a curva de consumo (Carga) ou é constante (Flat)."],
+  ];
+  const hG = 14 + glossario.length * 12;
+  let yG = finalY() + 18;
+  if (yG + 12 + hG > alt - 18) {
     doc.addPage();
-    cabecalhoPagina(c, "Detalhamento", "Observações");
-    yObs = 46;
+    cabecalhoPagina(c, "Detalhamento", "Como ler este relatório");
+    yG = 46;
+  } else {
+    tituloSecao(doc, "Como ler este relatório", yG);
   }
-  tituloSecao(doc, "Observações por proposta", yObs);
-  autoTable(doc, {
-    startY: yObs + 4,
-    head: [["Fornecedor", "Flexibilidade ofertada", "Observações"]],
-    body: ranking.map((r) => [r.Fornecedor, r.Flex, r.Observações]),
-    theme: "plain",
-    headStyles: { fillColor: VERDE, textColor: 255, fontStyle: "bold", lineColor: AMARELO_TABELA, lineWidth: { bottom: 0.8 } as never },
-    styles: { fontSize: 7.5, cellPadding: 2, lineColor: BORDA, lineWidth: { bottom: 0.2 } as never, overflow: "linebreak" },
-    columnStyles: { 0: { cellWidth: 30, fontStyle: "bold" }, 1: { cellWidth: 40 } },
-    margin: margem,
-  });
+  cartaoBase(doc, MARGEM, yG + 3, util, hG, VERDE, VERDE_CLARO);
+  let yg = yG + 3 + 11;
+  for (const [t, def] of glossario) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(...VERDE);
+    doc.text(t, MARGEM + 5, yg);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...TEXTO);
+    doc.text(doc.splitTextToSize(def, util - 52) as string[], MARGEM + 47, yg, { lineHeightFactor: 1.2 });
+    yg += 12;
+  }
 
-  // Página 4: cenário de mercado (PLD × Energia i5 Spot)
+  // ---------- Página 5: cenário de mercado (PLD × Energia i5 Spot × 1º no RANK) ----------
   if (mercado) paginaPld(c, resultado, mercado, lider);
 
-  // Página final: dados do cliente e parâmetros
+  // ---------- Página 6: dados do cliente e parâmetros ----------
   doc.addPage();
   cabecalhoPagina(c, "Premissas", "Cliente e Parâmetros");
-  const dado = (k: string) => String(cliente[k] ?? "—");
+  const dado = (k: string) => (vazio(cliente[k]) ? "—" : String(cliente[k]));
   let yp = 46;
   yp = painelDados(doc, larg, yp, "Dados do cliente", [
     { rotulo: "Razão social", valor: dado("Razão Social"), destaque: true, colunas: 3 },
@@ -1154,9 +1239,9 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
     { rotulo: "Modalidade", valor: dado("Modalidade") },
     { rotulo: "Tipo de energia", valor: dado("Tipo de Energia") },
     { rotulo: "Submercado", valor: dado("Submercado") },
-    { rotulo: "Período", valor: dado("Período") },
-    { rotulo: "Volume (MWm)", valor: dado("Volume (MWm)") },
-    { rotulo: "Flexibilidade", valor: dado("Flexibilidade") },
+    { rotulo: "Período", valor: periodoLegivel(dado("Período")) },
+    { rotulo: "Volume (MWm)", valor: volumeLegivel(dado("Volume (MWm)")) },
+    { rotulo: "Flexibilidade", valor: flexLegivel(dado("Flexibilidade")) },
     { rotulo: "Sazonalização", valor: dado("Sazo") },
     { rotulo: "Modulação", valor: dado("Modulação") },
   ]) + 8;
@@ -1177,7 +1262,7 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
     },
   ]);
 
-  // Página de contatos
+  // ---------- Página de contatos ----------
   doc.addPage();
   cabecalhoPagina(c, "Fale com a gente", "Nossos Contatos");
   doc.setFont("helvetica", "normal");
