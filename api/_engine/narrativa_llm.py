@@ -26,7 +26,7 @@ except ImportError:  # sem pydantic o módulo fica inerte (ver extrair_llm)
         return None
 
 # Muda quando o prompt ou o formato mudarem: invalida os textos guardados.
-PROMPT_VERSION = "n4"
+PROMPT_VERSION = "n5"
 
 MAX_TOPICOS = 4
 
@@ -54,14 +54,15 @@ FORMATO
 Senão: "Maior pontuação no RANK: {1º}. Menor preço: {mais barata}."
 - topicos (2 a 4), nesta ordem:
   1) "Custo: ..." sempre comparando com o 2º colocado, dizendo o nome dele e o período, neste molde: \
-"Custo: {nome_curto do 1º} é R$ X (Y%) {preco_do_primeiro_em_relacao_ao_segundo} que o 2º colocado ({nome_curto do 2º}) em {periodo_do_contrato}". \
+"Custo: {nome_curto do 1º} é {diferenca_de_preco_no_periodo} ({diferenca_percentual}) {preco_do_primeiro_em_relacao_ao_segundo} que o 2º colocado ({nome_curto do 2º}) em {periodo_do_contrato}". \
+Use o total do período (diferenca_de_preco_no_periodo) e não cite a diferença por MWh neste tópico. \
 Só acrescente ", cerca de R$ Z por ano" se "diferenca_de_preco_por_ano" existir nos fatos; com um ano só, NÃO fale em valor por ano \
 (seria o mesmo valor repetido). Nunca escreva só "diferença de R$ X": diga quem é mais barato ou mais caro que quem.
   2) Se o 1º NÃO for o mais barato: "O que o custo extra compra: ..." em palavras simples, a partir de \
 "condicoes_que_diferem" e "pontuacao_onde_o_primeiro_ganha". Se o 1º for também o mais barato: \
 "Condições: ..." com a natureza da proposta (firme, indicativa, vinculante), a aderência ao produto e a flexibilidade \
 do 1º, a partir de "condicoes_do_primeiro".
-  3) Só se existir "mercado" nos fatos: "Mercado: o preço do 1º está X% acima/abaixo da média do spot i5 no período (R$ ...)." \
+  3) Só se existir "mercado" nos fatos: "Mercado: o preço da proposta da {nome_curto do 1º} está X% acima/abaixo da média do spot i5 no período (R$ ...)." \
 usando exatamente os textos de "mercado".
   4) Só se o 1º NÃO for o mais barato: último tópico "Decisão: {1º} se {vantagem} importa; {mais barata} se o menor custo importa."
 - Não escreva pontos de atenção, alertas de validade nem "próximo passo": isso já aparece em outro lugar do relatório."""
