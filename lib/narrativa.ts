@@ -31,15 +31,18 @@ export function fatosDoComparativo(resultado: Resultado, metricas?: MetricasMerc
   const ganhaSegundo = cmp.pontos.filter((p) => p.b - p.a >= 0.05).map((p) => `${criterio(p.rotulo)} (+${n(p.b - p.a, 1)} ponto(s))`);
 
   return JSON.parse(limpa(JSON.stringify({
-    primeiro: { nome: a.Fornecedor, pontuacao_total: n(a.Pontuação ?? 0, 1), preco_medio: `R$ ${n(cmp.totalA.media)}/MWh` },
-    segundo: { nome: b.Fornecedor, pontuacao_total: n(b.Pontuação ?? 0, 1), preco_medio: `R$ ${n(cmp.totalB.media)}/MWh` },
+    primeiro: { nome: a.Fornecedor, nome_curto: a.Fornecedor.split(" - ")[0].trim(), pontuacao_total: n(a.Pontuação ?? 0, 1), preco_medio: `R$ ${n(cmp.totalA.media)}/MWh` },
+    segundo: { nome: b.Fornecedor, nome_curto: b.Fornecedor.split(" - ")[0].trim(), pontuacao_total: n(b.Pontuação ?? 0, 1), preco_medio: `R$ ${n(cmp.totalB.media)}/MWh` },
     mais_barata: nomeMaisBarata,
     primeiro_e_o_mais_barato: primeiroEMaisBarato,
+    // Em relação ao 2º colocado: o preço do 1º é "mais barato" ou "mais caro" (igual => "igual").
+    preco_do_primeiro_em_relacao_ao_segundo: dif < 0.005 ? "igual" : primeiroEMaisBarato ? "mais barata" : "mais cara",
     anos_do_contrato: cmp.anos.length,
     valores_para_citar: {
       diferenca_de_preco_no_periodo: reaisCurto(dif),
       diferenca_percentual: `${n(maiorValor > 0 ? (dif / maiorValor) * 100 : 0, 1)}%`,
-      diferenca_de_preco_por_ano: reaisCurto(dif / cmp.anos.length),
+      // Por ano só faz sentido com mais de um ano: com um ano só, seria o mesmo valor repetido.
+      ...(cmp.anos.length > 1 ? { diferenca_de_preco_por_ano: reaisCurto(dif / cmp.anos.length) } : {}),
       diferenca_do_preco_medio: `R$ ${n(difPreco)}/MWh`,
     },
     pontuacao_onde_o_primeiro_ganha: ganhaPrimeiro,

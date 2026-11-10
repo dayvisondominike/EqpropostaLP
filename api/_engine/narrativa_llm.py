@@ -26,7 +26,7 @@ except ImportError:  # sem pydantic o módulo fica inerte (ver extrair_llm)
         return None
 
 # Muda quando o prompt ou o formato mudarem: invalida os textos guardados.
-PROMPT_VERSION = "n3"
+PROMPT_VERSION = "n4"
 
 MAX_TOPICOS = 4
 
@@ -42,7 +42,7 @@ objetivo e direto, sem jargão (evite VPL, TMA, take-or-pay, sazonalização sem
 
 REGRAS DE CONTEÚDO
 - Use SOMENTE os fatos do JSON recebido. Não invente número, condição, prazo ou nome.
-- Para valores em R$, percentuais e preços, copie EXATAMENTE os textos de "valores_para_citar". \
+- Nas frases, chame cada proposta pelo "nome_curto" (ex.: "EDP", não o nome completo do produto). Para valores em R$, percentuais e preços, copie EXATAMENTE os textos de "valores_para_citar". \
 Não calcule, não arredonde, não converta. Não escreva centavos além do que estiver nesses textos.
 - "1º" e "2º" referem-se ao RANK, que é uma pontuação (preço, VPL, flexibilidade, sazonalização e modulação), \
 não só o preço.
@@ -53,7 +53,10 @@ FORMATO
 - destaque: uma linha. Se "primeiro_e_o_mais_barato" for verdadeiro: "{1º} tem a maior pontuação no RANK e o menor preço." \
 Senão: "Maior pontuação no RANK: {1º}. Menor preço: {mais barata}."
 - topicos (2 a 4), nesta ordem:
-  1) "Custo: ..." diferença de preço no período "periodo_do_contrato" (e por ano, se constar em valores_para_citar).
+  1) "Custo: ..." sempre comparando com o 2º colocado, dizendo o nome dele e o período, neste molde: \
+"Custo: {nome_curto do 1º} é R$ X (Y%) {preco_do_primeiro_em_relacao_ao_segundo} que o 2º colocado ({nome_curto do 2º}) em {periodo_do_contrato}". \
+Só acrescente ", cerca de R$ Z por ano" se "diferenca_de_preco_por_ano" existir nos fatos; com um ano só, NÃO fale em valor por ano \
+(seria o mesmo valor repetido). Nunca escreva só "diferença de R$ X": diga quem é mais barato ou mais caro que quem.
   2) Se o 1º NÃO for o mais barato: "O que o custo extra compra: ..." em palavras simples, a partir de \
 "condicoes_que_diferem" e "pontuacao_onde_o_primeiro_ganha". Se o 1º for também o mais barato: \
 "Condições: ..." com a natureza da proposta (firme, indicativa, vinculante), a aderência ao produto e a flexibilidade \
