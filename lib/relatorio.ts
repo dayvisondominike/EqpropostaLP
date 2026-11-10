@@ -929,7 +929,7 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
       x.v.texto,
       dadosDe(x.p),
     ]),
-    columnStyles: { 0: { cellWidth: 8, halign: "center" }, 1: { cellWidth: 36 }, 2: { cellWidth: 27, halign: "right" }, 3: { cellWidth: 17, halign: "right" }, 4: { cellWidth: 28 } },
+    columnStyles: { 0: { cellWidth: 8, halign: "center" }, 1: { cellWidth: 34 }, 2: { cellWidth: 25, halign: "right" }, 3: { cellWidth: 15, halign: "right" }, 4: { cellWidth: 24 }, 5: { cellWidth: 31 } },
     didParseCell: (d) => {
       if (d.section === "head" && (d.column.index === 2 || d.column.index === 3)) d.cell.styles.halign = "right";
       if (d.section !== "body") return;
