@@ -680,20 +680,22 @@ export function horaDe(texto: string): { h: number; m: number } | null {
 }
 const rotuloHora = (hm: { h: number; m: number }) => (hm.m ? `${hm.h}h${String(hm.m).padStart(2, "0")}` : `${hm.h}h`);
 
-export type Validade = { tipo: "vencida" | "valida" | "sem"; data: Date | null; hora: string | null; texto: string };
+/** `texto`: "Vencida em 06/11 às 18h"; `celula`: só a data e, na linha de baixo, a hora (coluna Validade da tabela). */
+export type Validade = { tipo: "vencida" | "valida" | "sem"; data: Date | null; hora: string | null; texto: string; celula: string };
 
 /** Situação da validade da proposta em relação a `hoje` (com a hora quando a proposta a informa). */
 export function validadeDe(prop: Dict | undefined, hoje: Date): Validade {
   const bruto = prop?.["Validade da Proposta"];
   const fim = vazio(bruto) ? null : lerData(String(bruto));
-  if (!fim) return { tipo: "sem", data: null, hora: null, texto: "Não informada" };
+  if (!fim) return { tipo: "sem", data: null, hora: null, texto: "Não informada", celula: "Não informada" };
   const hm = horaDe(String(bruto));
   if (hm) fim.setHours(hm.h, hm.m, 0, 0); // vale até essa hora; sem hora, vale até o fim do dia
   const hora = hm ? rotuloHora(hm) : null;
   const sufixo = hora ? ` às ${hora}` : "";
+  const celula = `${dataCompleta(fim)}${hora ? `\n${hora}` : ""}`;
   return fim < hoje
-    ? { tipo: "vencida", data: fim, hora, texto: `Vencida em ${dataCurta(fim)}${sufixo}` }
-    : { tipo: "valida", data: fim, hora, texto: `Válida até ${dataCurta(fim)}${sufixo}` };
+    ? { tipo: "vencida", data: fim, hora, texto: `Vencida em ${dataCurta(fim)}${sufixo}`, celula }
+    : { tipo: "valida", data: fim, hora, texto: `Válida até ${dataCurta(fim)}${sufixo}`, celula };
 }
 
 /** Frase da faixa de alerta de validade; null quando nenhuma proposta venceu. */
@@ -926,10 +928,10 @@ export async function gerarRelatorioPdf(resultado: Resultado, mercado?: DadosMer
       x.r["Preço Médio (R$/MWh)"] != null ? moeda(x.r["Preço Médio (R$/MWh)"]) : "—",
       x.r.Pontuação != null ? pct1(x.r.Pontuação) : "—",
       tipoCurto(x.p?.["Tipo de Proposta"] ?? x.r["Tipo de Proposta"]),
-      x.v.texto,
+      x.v.celula,
       dadosDe(x.p),
     ]),
-    columnStyles: { 0: { cellWidth: 8, halign: "center" }, 1: { cellWidth: 34 }, 2: { cellWidth: 25, halign: "right" }, 3: { cellWidth: 15, halign: "right" }, 4: { cellWidth: 24 }, 5: { cellWidth: 31 } },
+    columnStyles: { 0: { cellWidth: 8, halign: "center" }, 1: { cellWidth: 34 }, 2: { cellWidth: 25, halign: "right" }, 3: { cellWidth: 15, halign: "right" }, 4: { cellWidth: 26 }, 5: { cellWidth: 24 } },
     didParseCell: (d) => {
       if (d.section === "head" && (d.column.index === 2 || d.column.index === 3)) d.cell.styles.halign = "right";
       if (d.section !== "body") return;
