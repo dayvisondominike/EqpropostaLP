@@ -678,7 +678,8 @@ export function horaDe(texto: string): { h: number; m: number } | null {
   const h = Number(x[1]), m = x[2] ? Number(x[2]) : 0;
   return h < 24 && m < 60 ? { h, m } : null;
 }
-const rotuloHora = (hm: { h: number; m: number }) => (hm.m ? `${hm.h}h${String(hm.m).padStart(2, "0")}` : `${hm.h}h`);
+/** Hora sempre no formato xxhxx: 18h00, 09h30. */
+const rotuloHora = (hm: { h: number; m: number }) => `${String(hm.h).padStart(2, "0")}h${String(hm.m).padStart(2, "0")}`;
 
 /** `texto`: "Vencida em 06/11 às 18h"; `celula`: só a data e, na linha de baixo, a hora (coluna Validade da tabela). */
 export type Validade = { tipo: "vencida" | "valida" | "sem"; data: Date | null; hora: string | null; texto: string; celula: string };
