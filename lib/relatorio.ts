@@ -671,16 +671,29 @@ const nomeCurto = (n: string) => n.split(" - ")[0].trim();
 const juntar = (ns: string[]) => (ns.length <= 1 ? (ns[0] ?? "") : `${ns.slice(0, -1).join(", ")} e ${ns[ns.length - 1]}`);
 const vazio = (v: unknown) => v == null || String(v).trim() === "" || ["nan", "none", "null"].includes(String(v).trim().toLowerCase());
 
-export type Validade = { tipo: "vencida" | "valida" | "sem"; data: Date | null; texto: string };
+/** Hora citada no texto da validade ("18:00", "18h00", "até 18h"): { h, m } ou null quando não há hora. */
+export function horaDe(texto: string): { h: number; m: number } | null {
+  const x = texto.match(/(\d{1,2})(?::|\s*h(?:s|oras?)?)\s*(\d{2})?/i);
+  if (!x) return null;
+  const h = Number(x[1]), m = x[2] ? Number(x[2]) : 0;
+  return h < 24 && m < 60 ? { h, m } : null;
+}
+const rotuloHora = (hm: { h: number; m: number }) => (hm.m ? `${hm.h}h${String(hm.m).padStart(2, "0")}` : `${hm.h}h`);
 
-/** Situação da validade da proposta em relação a `hoje`. */
+export type Validade = { tipo: "vencida" | "valida" | "sem"; data: Date | null; hora: string | null; texto: string };
+
+/** Situação da validade da proposta em relação a `hoje` (com a hora quando a proposta a informa). */
 export function validadeDe(prop: Dict | undefined, hoje: Date): Validade {
   const bruto = prop?.["Validade da Proposta"];
   const fim = vazio(bruto) ? null : lerData(String(bruto));
-  if (!fim) return { tipo: "sem", data: null, texto: "Não informada" };
+  if (!fim) return { tipo: "sem", data: null, hora: null, texto: "Não informada" };
+  const hm = horaDe(String(bruto));
+  if (hm) fim.setHours(hm.h, hm.m, 0, 0); // vale até essa hora; sem hora, vale até o fim do dia
+  const hora = hm ? rotuloHora(hm) : null;
+  const sufixo = hora ? ` às ${hora}` : "";
   return fim < hoje
-    ? { tipo: "vencida", data: fim, texto: `Vencida em ${dataCurta(fim)}` }
-    : { tipo: "valida", data: fim, texto: `Válida até ${dataCurta(fim)}` };
+    ? { tipo: "vencida", data: fim, hora, texto: `Vencida em ${dataCurta(fim)}${sufixo}` }
+    : { tipo: "valida", data: fim, hora, texto: `Válida até ${dataCurta(fim)}${sufixo}` };
 }
 
 /** Frase da faixa de alerta de validade; null quando nenhuma proposta venceu. */
@@ -689,12 +702,12 @@ export function textoAlertaValidade(itens: { nome: string; rank: number | string
   if (vencidas.length === 0) return null;
   const porData = new Map<string, string[]>();
   for (const x of vencidas) {
-    const k = dataCompleta(x.v.data!);
+    const k = `${dataCompleta(x.v.data!)}${x.v.hora ? ` às ${x.v.hora}` : ""}`;
     porData.set(k, [...(porData.get(k) ?? []), nomeCurto(x.nome)]);
   }
   const partes = [...porData].map(([data, ns]) => `${juntar(ns)} ${ns.length > 1 ? "perderam" : "perdeu"} a validade em ${data}.`);
   for (const x of itens.filter((i) => i.v.tipo === "valida")) {
-    partes.push(`A ${nomeCurto(x.nome)}${typeof x.rank === "number" ? `, ${x.rank}ª no RANK,` : ""} segue válida até ${dataCompleta(x.v.data!)}.`);
+    partes.push(`A ${nomeCurto(x.nome)}${typeof x.rank === "number" ? `, ${x.rank}ª no RANK,` : ""} segue válida até ${dataCompleta(x.v.data!)}${x.v.hora ? ` às ${x.v.hora}` : ""}.`);
   }
   if (vencidas.some((x) => typeof x.rank === "number" && x.rank <= 2)) partes.push("Para fechar com as propostas vencidas é preciso reabertura ou atualização.");
   return partes.join(" ");
